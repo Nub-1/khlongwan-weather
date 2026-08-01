@@ -1,0 +1,12 @@
+# Local dev files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# IDE
+.vscode/
+.idea/
+
+# Don't ignore anything for production (we only have index.html + README.md)
