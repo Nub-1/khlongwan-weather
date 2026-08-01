@@ -294,55 +294,6 @@
       background: linear-gradient(90deg, #4299e1 0%, #2a5298 100%);
     }
 
-    .radar-img {
-      width: 100%;
-      max-width: 720px;
-      border-radius: 12px;
-      display: block;
-      margin: 0 auto;
-      box-shadow: 0 4px 16px rgba(0,0,0,0.15);
-    }
-    .radar-info {
-      text-align: center;
-      margin-top: 12px;
-      color: #4a5568;
-      font-size: 0.9em;
-    }
-    .radar-thumbnails {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-      gap: 10px;
-      margin-top: 16px;
-    }
-    .radar-thumb {
-      position: relative;
-      cursor: pointer;
-      border-radius: 8px;
-      overflow: hidden;
-      aspect-ratio: 1;
-      border: 3px solid transparent;
-      transition: all 0.2s;
-    }
-    .radar-thumb:hover { transform: scale(1.05); }
-    .radar-thumb.active { border-color: #2a5298; }
-    .radar-thumb img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      display: block;
-    }
-    .radar-thumb-label {
-      position: absolute;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      background: rgba(0,0,0,0.65);
-      color: white;
-      font-size: 0.75em;
-      padding: 4px;
-      text-align: center;
-    }
-
     footer {
       text-align: center;
       color: rgba(255,255,255,0.8);
@@ -434,21 +385,6 @@
       </div>
     </div>
 
-    <div class="panel">
-      <h2>🗺️ แผนที่เรดาร์ฝน (Live Tile จาก Longdo)</h2>
-      <p style="color:#4a5568;font-size:0.9em;margin-bottom:12px;">
-        📡 tile เดี่ยว z=13 (maxzoom) crop 60×60 pixels รอบศูนย์กลาง = รัศมี ~565 เมตร (แม่นยำในแปลง)
-        <br>🔄 auto-refresh ทุก 5 นาที
-      </p>
-      <img id="radar-main" class="radar-img" alt="กำลังโหลดเรดาร์...">
-      <div class="radar-info" id="radar-info">กำลังโหลด...</div>
-
-      <h3 style="margin-top:24px;color:#1e3c72;font-size:1.05em;">⏱️ Timeline (ย้อนหลัง + พยากรณ์ข้างหน้า)</h3>
-      <div class="radar-thumbnails" id="radar-thumbnails">
-        <div class="status-loading">กำลังโหลด timeline...</div>
-      </div>
-    </div>
-
     <footer>
       🌴 Weather Dashboard v2 — Live API Mode (ไม่ต้อง cron/script) | Longdo Weather + Open-Meteo
     </footer>
@@ -481,22 +417,37 @@ function tileToLatLon(x, y, zoom) {
 
 // ============ State ============
 let chartObj = null;
-let currentRadarTimestamp = null;
 let refreshTimer = null;
 
 // ============ Longdo Weather API ============
 async function fetchLongdoRain() {
-  const url = `https://weather.longdo.com/rain/api/v1/location?key=${LONGDO_KEY}&lat=${LAT}&lon=${LON}`;
-  const r = await fetch(url);
-  if (!r.ok) throw new Error(`Longdo rain: HTTP ${r.status}`);
-  return await r.json();
+  try {
+    const url = `https://weather.longdo.com/rain/api/v1/location?key=${LONGDO_KEY}&lat=${LAT}&lon=${LON}`;
+    const r = await fetch(url);
+    if (!r.ok) {
+      console.warn(`Longdo rain HTTP ${r.status}`);
+      return null;
+    }
+    return await r.json();
+  } catch (e) {
+    console.warn('Longdo rain failed:', e.message);
+    return null;
+  }
 }
 
 async function fetchLongdoWind() {
-  const url = `https://weather.longdo.com/wind/api/v1/location?key=${LONGDO_KEY}&lat=${LAT}&lon=${LON}`;
-  const r = await fetch(url);
-  if (!r.ok) throw new Error(`Longdo wind: HTTP ${r.status}`);
-  return await r.json();
+  try {
+    const url = `https://weather.longdo.com/wind/api/v1/location?key=${LONGDO_KEY}&lat=${LAT}&lon=${LON}`;
+    const r = await fetch(url);
+    if (!r.ok) {
+      console.warn(`Longdo wind HTTP ${r.status}`);
+      return null;
+    }
+    return await r.json();
+  } catch (e) {
+    console.warn('Longdo wind failed:', e.message);
+    return null;
+  }
 }
 
 // ============ Open-Meteo API ============
@@ -516,99 +467,39 @@ async function fetchOpenMeteoForecast() {
   return await r.json();
 }
 
-// ============ Radar Tile ============
-function buildRadarTimestampUTC(date) {
-  // Longdo ใช้ timestamp รูปแบบ YYYYMMDDHHMM (UTC)
-  const y = date.getUTCFullYear();
-  const m = String(date.getUTCMonth() + 1).padStart(2, '0');
-  const d = String(date.getUTCDate()).padStart(2, '0');
-  const h = String(date.getUTCHours()).padStart(2, '0');
-  const min = String(date.getUTCMinutes()).padStart(2, '0');
-  return `${y}${m}${d}${h}${min}`;
-}
-
-function getRadarTileUrl(timestamp, z, x, y) {
-  return `https://weather.longdo.com/rain/api/v1/layer/${timestamp}/${z}/${x}/${y}.png?key=${LONGDO_KEY}`;
-}
-
-function getForecastTileUrl(timestamp, z, x, y) {
-  // forecast_${ts} สำหรับพยากรณ์
-  return `https://weather.longdo.com/rain/api/v1/layer/forecast_${timestamp}/${z}/${x}/${y}.png?key=${LONGDO_KEY}`;
-}
-
-async function renderRadar(timestamp, mode = 'observed') {
-  const [cx, cy] = latlonToTile(LAT, LON, Z);
-  const url = mode === 'forecast'
-    ? getForecastTileUrl(timestamp, Z, cx, cy)
-    : getRadarTileUrl(timestamp, Z, cx, cy);
-
-  const img = document.getElementById('radar-main');
-  const info = document.getElementById('radar-info');
-
-  return new Promise((resolve, reject) => {
-    img.onload = () => {
-      const t = new Date(timestamp.replace(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})$/, '$1-$2-$3 $4:$5 UTC'));
-      const label = mode === 'forecast' ? 'พยากรณ์' : 'สังเกตการณ์';
-      info.textContent = `${label}: ${t.toISOString().replace('T', ' ').slice(0, 16)} UTC  •  z=${Z}, tile=(${cx},${cy})  •  ~565 m radius`;
-      resolve();
-    };
-    img.onerror = () => {
-      info.textContent = '❌ โหลด tile ไม่สำเร็จ (อาจไม่มี tile ในเวลานี้)';
-      reject(new Error('tile load failed'));
-    };
-    img.src = url + '&t=' + Date.now(); // cache buster
-    currentRadarTimestamp = { value: timestamp, mode };
-  });
-}
-
-async function buildThumbnails() {
-  const thumbs = document.getElementById('radar-thumbnails');
-  thumbs.innerHTML = '';
-
-  // ย้อนหลัง 4 timestamps (ทุก 15 นาที) + พยากรณ์ 3 ตัว
-  const now = new Date();
-  const items = [];
-
-  // ย้อนหลัง
-  for (let i = 0; i < 4; i++) {
-    const t = new Date(now.getTime() - i * 15 * 60000);
-    t.setUTCSeconds(0, 0);
-    t.setUTCMinutes(Math.floor(t.getUTCMinutes() / 15) * 15);
-    items.push({ ts: buildRadarTimestampUTC(t), mode: 'observed', label: `${i * 15} นาทีที่แล้ว` });
-  }
-  // พยากรณ์ +30, +45, +60 นาที
-  for (const offset of [30, 45, 60]) {
-    const t = new Date(now.getTime() + offset * 60000);
-    items.push({ ts: buildRadarTimestampUTC(t), mode: 'forecast', label: `+${offset} นาที` });
-  }
-
-  for (let i = 0; i < items.length; i++) {
-    const item = items[i];
-    const [cx, cy] = latlonToTile(LAT, LON, Z);
-    const url = item.mode === 'forecast'
-      ? getForecastTileUrl(item.ts, Z, cx, cy)
-      : getRadarTileUrl(item.ts, Z, cx, cy);
-
-    const div = document.createElement('div');
-    div.className = 'radar-thumb';
-    div.dataset.idx = i;
-    div.innerHTML = `
-      <img src="${url}&t=${Date.now()}" alt="${item.label}" loading="lazy">
-      <div class="radar-thumb-label">${item.label}</div>
-    `;
-    div.onclick = () => {
-      document.querySelectorAll('.radar-thumb').forEach(t => t.classList.remove('active'));
-      div.classList.add('active');
-      renderRadar(item.ts, item.mode);
-    };
-    thumbs.appendChild(div);
-  }
-
-  // Activate ตัวแรก (ล่าสุด)
-  thumbs.firstChild?.classList.add('active');
-}
-
 // ============ Rain Events ============
+
+// แปลง Open-Meteo WMO weather_code + precipitation เป็นสถานะภาษาไทย
+// WMO codes: https://open-meteo.com/en/docs (Weather variable documentation)
+function getCurrentRainStatus(omCurrent) {
+  const precip = omCurrent?.precipitation ?? 0;
+  const wc = omCurrent?.weather_code ?? -1;
+
+  if (wc === 0) return { status: '☀️ ฟ้าใส', desc: 'ไม่มีเมฆ ไม่มีฝน', isRainy: false };
+  if (wc === 1 || wc === 2) return {
+    status: precip >= 0.1 ? '🌦️ ฝนเล็กน้อย' : '🌤️ มีเมฆบางส่วน',
+    desc: `${precip.toFixed(2)} มม.`,
+    isRainy: precip >= 0.1
+  };
+  if (wc === 3) return {
+    status: precip >= 0.1 ? '🌦️ ฝนเล็กน้อย' : '☁️ มืดครึ้ม',
+    desc: `${precip.toFixed(2)} มม.`,
+    isRainy: precip >= 0.1
+  };
+  if (wc === 45 || wc === 48) return { status: '🌫️ หมอก', desc: 'ทัศนวิสัยจำกัด', isRainy: false };
+  if (wc >= 51 && wc <= 57) return { status: '🌦️ ฝนละออง', desc: `${precip.toFixed(2)} มม.`, isRainy: true };
+  if (wc === 61) return { status: '🌧️ ฝนเบา', desc: `${precip.toFixed(2)} มม.`, isRainy: true };
+  if (wc === 63) return { status: '🌧️ ฝนปานกลาง', desc: `${precip.toFixed(2)} มม.`, isRainy: true };
+  if (wc === 65) return { status: '🌧️ ฝนหนัก', desc: `${precip.toFixed(2)} มม.`, isRainy: true };
+  if (wc === 66 || wc === 67) return { status: '🌧️ ฝนเย็นจัด', desc: `${precip.toFixed(2)} มม.`, isRainy: true };
+  if (wc >= 71 && wc <= 77) return { status: '🌨️ หิมะ', desc: `${precip.toFixed(2)} มม.`, isRainy: false };
+  if (wc >= 80 && wc <= 82) return { status: '⛈️ ฝนซู่', desc: `${precip.toFixed(2)} มม.`, isRainy: true };
+  if (wc === 85 || wc === 86) return { status: '🌨️ หิมะตก', desc: `${precip.toFixed(2)} มม.`, isRainy: false };
+  if (wc === 95) return { status: '⛈️ พายุฝนฟ้าคะนอง', desc: `${precip.toFixed(2)} มม.`, isRainy: true };
+  if (wc === 96 || wc === 99) return { status: '⛈️ พายุ + ลูกเห็บ', desc: `${precip.toFixed(2)} มม.`, isRainy: true };
+  return { status: 'ไม่ทราบ', desc: `code=${wc}`, isRainy: precip >= 0.1 };
+}
+
 function detectRainEvents(hourly, thresholdMm = 0.1, thresholdProb = 60) {
   const events = [];
   let current = null;
@@ -660,7 +551,7 @@ function formatHour(date) {
   return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
 }
 
-function renderRainEvents(forecast) {
+function renderRainEvents(forecast, currentObs = null) {
   const container = document.getElementById('rain-events');
   container.innerHTML = '';
 
@@ -711,7 +602,14 @@ function renderRainEvents(forecast) {
 
         // ถ้า event ครอบคลุมเวลาปัจจุบัน (วันนี้) → ติดป้าย "กำลังตก"
         const isOngoing = date === todayStr && startTime.getTime() <= nowMs && endTime.getTime() >= nowMs;
-        const ongoingBadge = isOngoing ? '<span class="rain-now-indicator">⚡ กำลังตก</span>' : '';
+        // ป้าย "กำลังตก" ต้อง require observation จริง (forecast + observed ตรงกัน) — ไม่ใช่แค่เช็คจากเวลา forecast
+        const isRainingNow = currentObs && (
+          (currentObs.precipitation ?? 0) >= 0.1 ||
+          ((currentObs.weather_code ?? -1) >= 51 && (currentObs.weather_code ?? -1) <= 99)
+        );
+        const ongoingBadge = (isOngoing && isRainingNow)
+          ? '<span class="rain-now-indicator">⚡ กำลังตก</span>'
+          : '';
 
         return `
           <div class="rain-event" style="border-left-color:${intensity.color}">
@@ -860,29 +758,46 @@ async function render() {
     // Header
     document.getElementById('generated-at').textContent = '⏱️ อัปเดต: ' + new Date().toLocaleTimeString('th-TH');
 
-    // Rain card
-    const intensity = rain.rain.intensity;
-    document.getElementById('rain-now').textContent = rain.rain.description;
-    document.getElementById('rain-desc').textContent = `Intensity: ${intensity}/5 (level ${rain.rain.level})`;
+    // === Current rain card (Open-Meteo PRIMARY + Longdo SECONDARY) ===
+    const omCur = forecast.current || {};
+    const { status: rainStatus, desc: rainDesc } = getCurrentRainStatus(omCur);
+    document.getElementById('rain-now').textContent = rainStatus;
+    let rainDescFull = `🌐 Open-Meteo: ${rainDesc}`;
+    if (rain && rain.rain) {
+      rainDescFull += ` • Longdo: ${rain.rain.description} (${rain.rain.intensity}/5)`;
+      // เตือนถ้า 2 แหล่งไม่ตรงกัน (Open-Meteo บอกฝนตก แต่ Longdo บอกไม่ตก หรือกลับกัน)
+      const omRaining = (omCur.precipitation ?? 0) >= 0.1 || ((omCur.weather_code ?? -1) >= 51);
+      const longdoRaining = rain.rain.intensity > 0;
+      if (omRaining !== longdoRaining) {
+        rainDescFull += ` ⚠️ ข้อมูลไม่ตรงกัน`;
+      }
+    } else {
+      rainDescFull += ' • Longdo: ⚠️ ไม่ตอบสนอง';
+    }
+    document.getElementById('rain-desc').textContent = rainDescFull;
 
-    // Wind card
-    const w = wind.wind;
-    document.getElementById('wind-now').textContent = `${w.speed_kmh.toFixed(1)} km/h`;
-    document.getElementById('wind-desc').textContent = `${w.direction_text_th} (${w.direction_degrees.toFixed(0)}°)`;
+    // === Wind card ===
+    const w = wind?.wind;
+    if (w) {
+      document.getElementById('wind-now').textContent = `${w.speed_kmh.toFixed(1)} km/h`;
+      document.getElementById('wind-desc').textContent = `${w.direction_text_th} (${w.direction_degrees.toFixed(0)}°)`;
+    } else {
+      document.getElementById('wind-now').textContent = '-';
+      document.getElementById('wind-desc').textContent = '⚠️ Longdo wind ไม่ตอบสนอง';
+    }
 
     // Temp card
-    const cur = forecast.current || {};
-    if (cur.temperature_2m != null) {
-      document.getElementById('temp-now').textContent = `${cur.temperature_2m.toFixed(1)}°C`;
-      document.getElementById('temp-desc').textContent = `ความชื้น ${cur.relative_humidity_2m || '-'}%`;
+    if (omCur.temperature_2m != null) {
+      document.getElementById('temp-now').textContent = `${omCur.temperature_2m.toFixed(1)}°C`;
+      document.getElementById('temp-desc').textContent = `ความชื้น ${omCur.relative_humidity_2m || '-'}%`;
     }
 
     // Rain week card
     const last7 = (archive.daily.precipitation_sum || []).slice(-7).reduce((a, b) => a + (b || 0), 0);
     document.getElementById('rain-week').textContent = `${last7.toFixed(1)} มม.`;
 
-    // Rain events (today + tomorrow)
-    renderRainEvents(forecast);
+    // Rain events (today + tomorrow) — pass current observation for accurate "กำลังตก" badge
+    renderRainEvents(forecast, omCur);
 
     // Rain history (past 7 days)
     renderRainHistory(archive);
@@ -893,19 +808,8 @@ async function render() {
     // Forecast grid
     renderForecastGrid(forecast);
 
-    // Radar (latest observed)
-    const now = new Date();
-    now.setUTCSeconds(0, 0);
-    now.setUTCMinutes(Math.floor(now.getUTCMinutes() / 15) * 15);
-    const ts = buildRadarTimestampUTC(now);
-    try {
-      await renderRadar(ts, 'observed');
-    } catch (e) {
-      // fallback: ลองย้อนหลัง 15 นาที
-      const t2 = new Date(now.getTime() - 15 * 60000);
-      await renderRadar(buildRadarTimestampUTC(t2), 'observed');
-    }
-    await buildThumbnails();
+    // Radar section removed - Longdo free tier doesn't provide tile endpoint
+    // (See https://weather.longdo.com/docs for paid tier access)
 
     status.textContent = '🟢 อัปเดตล่าสุด: ' + new Date().toLocaleTimeString('th-TH');
     console.log('✅ All data loaded at', new Date().toISOString());
