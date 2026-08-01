@@ -134,6 +134,119 @@
       font-size: 1.3em;
     }
 
+    /* ===== Rain Events ===== */
+    .rain-day-empty {
+      background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+      border: 1px dashed #86efac;
+      border-radius: 12px;
+      padding: 20px;
+      text-align: center;
+      color: #15803d;
+      font-size: 0.95em;
+    }
+    .rain-day-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+    }
+    .rain-day-header h3 {
+      color: #1e3c72;
+      font-size: 1.05em;
+      margin: 0;
+    }
+    .rain-count {
+      background: #2a5298;
+      color: white;
+      padding: 3px 10px;
+      border-radius: 12px;
+      font-size: 0.78em;
+      font-weight: 600;
+    }
+    .rain-total {
+      color: #1e3c72;
+      font-weight: 700;
+      font-size: 0.95em;
+    }
+    .rain-events-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+      gap: 12px;
+    }
+    .rain-event {
+      background: linear-gradient(135deg, #f7fafc 0%, #edf2f7 100%);
+      border-radius: 12px;
+      padding: 14px;
+      border-left: 4px solid #06b6d4;
+      transition: transform 0.15s, box-shadow 0.15s;
+    }
+    .rain-event:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(0,0,0,0.1);
+    }
+    .rain-event-time {
+      font-weight: 700;
+      color: #1a202c;
+      font-size: 0.95em;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .rain-event-duration {
+      color: #718096;
+      font-weight: 400;
+      font-size: 0.8em;
+    }
+    .rain-event-stats {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+    .rain-event-mm {
+      font-size: 1.15em;
+      font-weight: 700;
+      color: #1e3c72;
+    }
+    .rain-event-intensity {
+      font-size: 0.72em;
+      color: white;
+      padding: 3px 9px;
+      border-radius: 8px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .rain-event-prob {
+      font-size: 0.8em;
+      color: #4a5568;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .rain-event-prob-bar {
+      flex: 1;
+      height: 4px;
+      background: #e2e8f0;
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    .rain-event-prob-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #60a5fa, #2563eb);
+      border-radius: 2px;
+    }
+    .rain-now-indicator {
+      background: #ef4444;
+      color: white;
+      padding: 2px 8px;
+      border-radius: 6px;
+      font-size: 0.7em;
+      font-weight: 700;
+      animation: pulse 2s infinite;
+    }
+
     .chart-container {
       position: relative;
       height: 320px;
@@ -284,6 +397,16 @@
         <div class="card-label">ฝนสะสม 7 วัน</div>
         <div class="card-value" id="rain-week">-</div>
         <div class="card-desc">มม. (รวม 7 วันล่าสุด)</div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>⏰ ช่วงเวลาที่ฝนตก (วันนี้ + พรุ่งนี้)</h2>
+      <p style="color:#4a5568;font-size:0.9em;margin-bottom:12px;">
+        🌧️ จัดกลุ่มชั่วโมงที่ฝนตกติดกันเป็น "ครั้ง" (≥ 0.1 มม. หรือโอกาส ≥ 60%) — ใช้วางแผนงานในแปลง
+      </p>
+      <div id="rain-events">
+        <div class="status-loading">กำลังโหลด...</div>
       </div>
     </div>
 
@@ -475,6 +598,144 @@ async function buildThumbnails() {
   thumbs.firstChild?.classList.add('active');
 }
 
+// ============ Rain Events ============
+function detectRainEvents(hourly, thresholdMm = 0.1, thresholdProb = 60) {
+  const events = [];
+  let current = null;
+
+  for (let i = 0; i < hourly.time.length; i++) {
+    const time = hourly.time[i];
+    const precip = hourly.precipitation?.[i] || 0;
+    const prob = hourly.precipitation_probability?.[i] || 0;
+
+    // ถือว่าฝนตก ถ้ามีปริมาณจริง หรือโอกาสสูงพอ
+    const isRainy = precip >= thresholdMm || prob >= thresholdProb;
+
+    if (isRainy) {
+      if (!current) {
+        current = {
+          start: time,
+          end: time,
+          hours: 1,
+          totalMm: precip,
+          maxMm: precip,
+          maxProb: prob,
+        };
+      } else {
+        current.end = time;
+        current.hours += 1;
+        current.totalMm += precip;
+        current.maxMm = Math.max(current.maxMm, precip);
+        current.maxProb = Math.max(current.maxProb, prob);
+      }
+    } else if (current) {
+      events.push(current);
+      current = null;
+    }
+  }
+  if (current) events.push(current);
+  return events;
+}
+
+function classifyIntensity(maxMm) {
+  // อ้างอิงจากมาตรฐานปริมาณฝนรายชั่วโมง
+  // 0.1-1.0  = เบา | 1.0-2.5 = ปานกลาง | 2.5-7.5 = หนัก | >=7.5 = หนักมาก
+  if (maxMm >= 7.5) return { level: 'หนักมาก', color: '#b91c1c' };
+  if (maxMm >= 2.5) return { level: 'หนัก',     color: '#ea580c' };
+  if (maxMm >= 1.0) return { level: 'ปานกลาง', color: '#f59e0b' };
+  return                  { level: 'เบา',      color: '#06b6d4' };
+}
+
+function formatHour(date) {
+  return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+}
+
+function renderRainEvents(forecast) {
+  const container = document.getElementById('rain-events');
+  container.innerHTML = '';
+
+  if (!forecast.hourly?.time?.length) {
+    container.innerHTML = '<div class="rain-day-empty">⚠️ ไม่มีข้อมูล hourly</div>';
+    return;
+  }
+
+  const events = detectRainEvents(forecast.hourly);
+
+  // Group by date (YYYY-MM-DD in local time, but forecast uses Asia/Bangkok TZ)
+  const byDate = {};
+  for (const e of events) {
+    const date = e.start.slice(0, 10);
+    if (!byDate[date]) byDate[date] = [];
+    byDate[date].push(e);
+  }
+
+  // วันนี้ + พรุ่งนี้ (ใช้เวลาท้องถิ่น Asia/Bangkok)
+  const today = new Date();
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+  const tomorrowDate = new Date(today.getTime() + 86400000);
+  const tomorrowStr = `${tomorrowDate.getFullYear()}-${String(tomorrowDate.getMonth() + 1).padStart(2,'0')}-${String(tomorrowDate.getDate()).padStart(2,'0')}`;
+
+  const nowMs = Date.now();
+
+  for (const date of [todayStr, tomorrowStr]) {
+    const dayEvents = byDate[date] || [];
+    const dayDate = new Date(date + 'T00:00:00');
+    const dayName = dayDate.toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'short' });
+    const totalMm = dayEvents.reduce((s, e) => s + e.totalMm, 0);
+
+    const dayDiv = document.createElement('div');
+
+    if (dayEvents.length === 0) {
+      dayDiv.innerHTML = `
+        <div class="rain-day-header">
+          <h3>📅 ${dayName}</h3>
+        </div>
+        <div class="rain-day-empty">☀️ ไม่มีฝนตกคาดการณ์</div>
+      `;
+    } else {
+      const cards = dayEvents.map(e => {
+        const startTime = new Date(e.start);
+        // end time ของ event คือเวลาสุดท้ายที่ยังมีฝน -> +1 ชม. เพื่อแสดงช่วงเวลา
+        const endTime = new Date(new Date(e.end).getTime() + 3600000);
+        const intensity = classifyIntensity(e.maxMm);
+
+        // ถ้า event ครอบคลุมเวลาปัจจุบัน (วันนี้) → ติดป้าย "กำลังตก"
+        const isOngoing = date === todayStr && startTime.getTime() <= nowMs && endTime.getTime() >= nowMs;
+        const ongoingBadge = isOngoing ? '<span class="rain-now-indicator">⚡ กำลังตก</span>' : '';
+
+        return `
+          <div class="rain-event" style="border-left-color:${intensity.color}">
+            <div class="rain-event-time">
+              ⏰ ${formatHour(startTime)} - ${formatHour(endTime)}
+              <span class="rain-event-duration">(${e.hours} ชม.)</span>
+              ${ongoingBadge}
+            </div>
+            <div class="rain-event-stats">
+              <div class="rain-event-mm">${e.totalMm.toFixed(1)} มม.</div>
+              <div class="rain-event-intensity" style="background:${intensity.color}">${intensity.level}</div>
+            </div>
+            <div class="rain-event-prob">
+              <span>โอกาส ${e.maxProb}%</span>
+              <div class="rain-event-prob-bar"><div class="rain-event-prob-fill" style="width:${Math.min(e.maxProb,100)}%"></div></div>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      dayDiv.innerHTML = `
+        <div class="rain-day-header">
+          <h3>📅 ${dayName}</h3>
+          <span class="rain-count">${dayEvents.length} ครั้ง</span>
+          <span class="rain-total">ฝนรวม ${totalMm.toFixed(1)} มม.</span>
+        </div>
+        <div class="rain-events-grid">${cards}</div>
+      `;
+    }
+
+    container.appendChild(dayDiv);
+  }
+}
+
 // ============ Render ============
 async function render() {
   const status = document.getElementById('refresh-status');
@@ -511,6 +772,9 @@ async function render() {
     // Rain week card
     const last7 = (archive.daily.precipitation_sum || []).slice(-7).reduce((a, b) => a + (b || 0), 0);
     document.getElementById('rain-week').textContent = `${last7.toFixed(1)} มม.`;
+
+    // Rain events (today + tomorrow)
+    renderRainEvents(forecast);
 
     // Chart
     renderChart(archive, forecast);
