@@ -8,6 +8,9 @@ Live weather dashboard สำหรับแปลงมะพร้าวคล
 
 - 🌧️ **ฝนปัจจุบัน** — Longdo Weather API (real-time rain intensity)
 - 💨 **ลม** — Longdo Weather Wind API
+- ⏰ **ช่วงเวลาที่ฝนตก** (วันนี้ + พรุ่งนี้) — จัดกลุ่ม hourly จาก Open-Meteo เป็น "ครั้ง" ของฝน
+  - บอกจำนวนครั้ง + เวลาเริ่ม-จบ + ปริมาณ + ความหนัก
+  - ป้าย "⚡ กำลังตก" เมื่อ event ครอบคลุมเวลาปัจจุบัน
 - 📊 **กราฟ 14 วัน** — Open-Meteo Forecast (ฝน, อุณหภูมิ, ความชื้น)
 - 📈 **สถิติย้อนหลัง** — Open-Meteo Archive (15 วันที่ผ่านมา)
 - 📡 **เรดาร์ฝนสด** — Longdo rain radar tiles (observed + forecast)
