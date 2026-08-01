@@ -411,6 +411,16 @@
     </div>
 
     <div class="panel">
+      <h2>📜 ประวัติฝนตกย้อนหลัง (7 วันที่ผ่านมา)</h2>
+      <p style="color:#4a5568;font-size:0.9em;margin-bottom:12px;">
+        ☔ บันทึกการตกของฝนจริง (≥ 0.1 มม.) จาก Open-Meteo Archive — ใช้ดูย้อนหลังว่าฝนตกช่วงไหน
+      </p>
+      <div id="rain-history">
+        <div class="status-loading">กำลังโหลด...</div>
+      </div>
+    </div>
+
+    <div class="panel">
       <h2>📊 กราฟฝน (ย้อนหลัง 14 วัน + พยากรณ์ 14 วัน)</h2>
       <div class="chart-container">
         <canvas id="rainChart"></canvas>
@@ -491,9 +501,9 @@ async function fetchLongdoWind() {
 
 // ============ Open-Meteo API ============
 async function fetchOpenMeteoArchive() {
-  const end = new Date().toISOString().slice(0, 10);
-  const start = new Date(Date.now() - 14 * 86400000).toISOString().slice(0, 10);
-  const url = `https://archive-api.open-meteo.com/v1/archive?latitude=${LAT}&longitude=${LON}&start_date=${start}&end_date=${end}&daily=precipitation_sum,precipitation_hours&timezone=Asia%2FBangkok`;
+  const end = new Date(Date.now() - 86400000).toISOString().slice(0, 10); // เมื่อวาน (archive lag ~1 day)
+  const start = new Date(Date.now() - 14 * 86400000).toISOString().slice(0, 10); // ย้อนหลัง 14 วัน (สำหรับ chart)
+  const url = `https://archive-api.open-meteo.com/v1/archive?latitude=${LAT}&longitude=${LON}&start_date=${start}&end_date=${end}&daily=precipitation_sum,precipitation_hours&hourly=precipitation&timezone=Asia%2FBangkok`;
   const r = await fetch(url);
   if (!r.ok) throw new Error(`Open-Meteo archive: HTTP ${r.status}`);
   return await r.json();
@@ -736,6 +746,104 @@ function renderRainEvents(forecast) {
   }
 }
 
+// ============ Rain History (past) ============
+function renderRainHistory(archive) {
+  const container = document.getElementById('rain-history');
+  container.innerHTML = '';
+
+  if (!archive.hourly?.time?.length) {
+    container.innerHTML = '<div class="rain-day-empty">⚠️ ไม่มีข้อมูล hourly</div>';
+    return;
+  }
+
+  // Archive hourly ไม่มี precipitation_probability → threshold แค่ precipitation ≥ 0.1mm
+  const events = detectRainEvents(archive.hourly, 0.1, 999); // thresholdProb=999 บังคับใช้ precipitation อย่างเดียว
+
+  // Group by date
+  const byDate = {};
+  for (const e of events) {
+    const date = e.start.slice(0, 10);
+    if (!byDate[date]) byDate[date] = [];
+    byDate[date].push(e);
+  }
+
+  // ย้อนหลัง 7 วัน (ไม่รวมวันนี้ เพราะยังไม่สมบูรณ์ใน archive)
+  const dates = [];
+  for (let i = 1; i <= 7; i++) {
+    const d = new Date(Date.now() - i * 86400000);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    dates.push(`${y}-${m}-${day}`);
+  }
+
+  let totalEvents = 0;
+  let totalMm = 0;
+
+  for (const date of dates) {
+    const dayEvents = byDate[date] || [];
+    const dayDate = new Date(date + 'T00:00:00');
+    const dayName = dayDate.toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'short' });
+    const dayTotal = dayEvents.reduce((s, e) => s + e.totalMm, 0);
+    totalEvents += dayEvents.length;
+    totalMm += dayTotal;
+
+    const dayDiv = document.createElement('div');
+    dayDiv.style.marginBottom = '16px';
+
+    if (dayEvents.length === 0) {
+      dayDiv.innerHTML = `
+        <div class="rain-day-header">
+          <h3>📅 ${dayName}</h3>
+        </div>
+        <div class="rain-day-empty" style="padding:10px 14px;font-size:0.85em;">
+          ☀️ ไม่มีฝนตก
+        </div>
+      `;
+    } else {
+      const cards = dayEvents.map(e => {
+        const startTime = new Date(e.start);
+        const endTime = new Date(new Date(e.end).getTime() + 3600000);
+        const intensity = classifyIntensity(e.maxMm);
+        return `
+          <div class="rain-event" style="border-left-color:${intensity.color}">
+            <div class="rain-event-time">
+              ⏰ ${formatHour(startTime)} - ${formatHour(endTime)}
+              <span class="rain-event-duration">(${e.hours} ชม.)</span>
+            </div>
+            <div class="rain-event-stats">
+              <div class="rain-event-mm">${e.totalMm.toFixed(1)} มม.</div>
+              <div class="rain-event-intensity" style="background:${intensity.color}">${intensity.level}</div>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      dayDiv.innerHTML = `
+        <div class="rain-day-header">
+          <h3>📅 ${dayName}</h3>
+          <span class="rain-count">${dayEvents.length} ครั้ง</span>
+          <span class="rain-total">ฝนรวม ${dayTotal.toFixed(1)} มม.</span>
+        </div>
+        <div class="rain-events-grid">${cards}</div>
+      `;
+    }
+
+    container.appendChild(dayDiv);
+  }
+
+  // สรุปรวม 7 วัน
+  const summary = document.createElement('div');
+  summary.style.cssText = 'margin-top:16px;padding:14px 18px;background:linear-gradient(135deg,#eef2ff 0%,#e0e7ff 100%);border-radius:12px;display:flex;justify-content:space-around;flex-wrap:wrap;gap:10px;font-size:0.9em;color:#1e3c72;font-weight:600;';
+  summary.innerHTML = `
+    <span>📊 7 วันย้อนหลัง</span>
+    <span>ฝนตกรวม <b style="color:#2563eb">${totalEvents} ครั้ง</b></span>
+    <span>ปริมาณรวม <b style="color:#2563eb">${totalMm.toFixed(1)} มม.</b></span>
+  `;
+  container.appendChild(summary);
+}
+
+
 // ============ Render ============
 async function render() {
   const status = document.getElementById('refresh-status');
@@ -775,6 +883,9 @@ async function render() {
 
     // Rain events (today + tomorrow)
     renderRainEvents(forecast);
+
+    // Rain history (past 7 days)
+    renderRainHistory(archive);
 
     // Chart
     renderChart(archive, forecast);
