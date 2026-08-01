@@ -560,7 +560,7 @@ async function fetchOpenMeteoArchive() {
 }
 
 async function fetchOpenMeteoForecast() {
-  const url = `https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}&daily=precipitation_sum,precipitation_probability_max,temperature_2m_max,temperature_2m_min&current=temperature_2m,relative_humidity_2m,precipitation,wind_speed_10m&hourly=precipitation,precipitation_probability&timezone=Asia%2FBangkok&forecast_days=14`;
+  const url = `https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}&daily=precipitation_sum,precipitation_probability_max,temperature_2m_max,temperature_2m_min&current=temperature_2m,relative_humidity_2m,precipitation,rain,weather_code,wind_speed_10m&hourly=precipitation,precipitation_probability&timezone=Asia%2FBangkok&forecast_days=14`;
   const r = await fetch(url);
   if (!r.ok) throw new Error(`Open-Meteo forecast: HTTP ${r.status}`);
   return await r.json();
@@ -1037,9 +1037,15 @@ async function render() {
 
     // === Current rain card (Open-Meteo PRIMARY + Longdo SECONDARY) ===
     const omCur = forecast.current || {};
+    const hasOmCurrent = omCur.weather_code !== undefined && omCur.weather_code !== null;
     const { status: rainStatus, desc: rainDesc } = getCurrentRainStatus(omCur);
     document.getElementById('rain-now').textContent = rainStatus;
-    let rainDescFull = `🌐 Open-Meteo: ${rainDesc}`;
+    let rainDescFull = '';
+    if (hasOmCurrent) {
+      rainDescFull = `🌐 Open-Meteo: ${rainDesc}`;
+    } else {
+      rainDescFull = `⚠️ Open-Meteo current ไม่มีข้อมูล (weather_code=${omCur.weather_code})`;
+    }
     if (rain && rain.rain) {
       rainDescFull += ` • Longdo: ${rain.rain.description} (${rain.rain.intensity}/5)`;
       // เตือนถ้า 2 แหล่งไม่ตรงกัน (Open-Meteo บอกฝนตก แต่ Longdo บอกไม่ตก หรือกลับกัน)
