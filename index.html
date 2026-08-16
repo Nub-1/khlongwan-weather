@@ -494,24 +494,42 @@
 const LAT = 11.7563340;
 const LON = 99.7684976;
 const LONGDO_KEY = 'fc3a538036000942bff242cb17c1ec99';
-const Z = 13; // maxzoom
-const CROP_HALF = 30; // pixels รอบศูนย์กลาง (~565 m radius)
 const REFRESH_MS = 5 * 60 * 1000; // 5 นาที
 
-// ============ Lat/Lon → Tile ============
-function latlonToTile(lat, lon, zoom) {
-  const n = 2 ** zoom;
-  const x = Math.floor((lon + 180.0) / 360.0 * n);
-  const latRad = lat * Math.PI / 180;
-  const y = Math.floor((1.0 - Math.asinh(Math.tan(latRad)) / Math.PI) / 2.0 * n);
-  return [x, y];
+// ============ Timezone (Asia/Bangkok) ============
+// Open-Meteo ถูกเรียกด้วย timezone=Asia/Bangkok → คืนค่าเวลาเป็น "wall clock" ของไทย
+// ("2026-08-16T14:00") ที่ไม่มี offset ต่อท้าย ถ้าโยนเข้า new Date() ตรง ๆ JS จะตีความ
+// เป็นเวลาท้องถิ่นของ "เครื่องผู้ใช้" ทำให้ผู้ที่เปิดจากนอกไทยเห็นเวลา/วันที่เพี้ยน
+// (และ "YYYY-MM-DD" เปล่า ๆ จะถูกตีความเป็น UTC ซึ่งคนละแบบกันอีก)
+// helper ชุดนี้จึงแปลงเองทั้งหมด ให้ผลลัพธ์เท่ากันทุก timezone
+const TZ = 'Asia/Bangkok';
+const TZ_OFFSET_MS = 7 * 3600000; // ไทยเป็น UTC+7 คงที่ ไม่มี DST
+
+// "YYYY-MM-DD" หรือ "YYYY-MM-DDTHH:mm" (เวลาไทย) → epoch ms จริง
+function bkkToEpoch(s) {
+  const [datePart, timePart = '00:00'] = String(s).split('T');
+  const [y, m, d] = datePart.split('-').map(Number);
+  const [hh, mm] = timePart.split(':').map(Number);
+  return Date.UTC(y, m - 1, d, hh, mm) - TZ_OFFSET_MS;
 }
 
-function tileToLatLon(x, y, zoom) {
-  const n = 2 ** zoom;
-  const lon = x / n * 360 - 180;
-  const lat = Math.atan(Math.sinh(Math.PI * (1 - 2 * y / n))) * 180 / Math.PI;
-  return [lat, lon];
+// epoch ms → "YYYY-MM-DD" ตามวันที่ในไทย (ไม่ใช่วันที่ของเครื่องผู้ใช้)
+function bkkDateStr(epochMs = Date.now()) {
+  return new Date(epochMs + TZ_OFFSET_MS).toISOString().slice(0, 10);
+}
+
+// epoch ms → "HH:MM" ตามเวลาไทย
+function bkkHour(epochMs) {
+  const d = new Date(epochMs + TZ_OFFSET_MS);
+  return `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`;
+}
+
+function addDays(dateStr, n) {
+  return bkkDateStr(bkkToEpoch(dateStr) + n * 86400000);
+}
+
+function bkkDayLabel(dateStr, opts) {
+  return new Date(bkkToEpoch(dateStr)).toLocaleDateString('th-TH', { timeZone: TZ, ...opts });
 }
 
 // ============ State ============
@@ -551,8 +569,11 @@ async function fetchLongdoWind() {
 
 // ============ Open-Meteo API ============
 async function fetchOpenMeteoArchive() {
-  const end = new Date(Date.now() - 86400000).toISOString().slice(0, 10); // เมื่อวาน (archive lag ~1 day)
-  const start = new Date(Date.now() - 14 * 86400000).toISOString().slice(0, 10); // ย้อนหลัง 14 วัน (สำหรับ chart)
+  // คำนวณช่วงวันที่ตามวันที่ในไทย — เดิมใช้ toISOString() ซึ่งเป็น UTC ทำให้ช่วง 00:00-07:00
+  // ตามเวลาไทย ได้ช่วงวันที่คลาดไป 1 วัน
+  const today = bkkDateStr();
+  const end = addDays(today, -1);
+  const start = addDays(today, -14); // ย้อนหลัง 14 วัน (สำหรับ chart)
   const url = `https://archive-api.open-meteo.com/v1/archive?latitude=${LAT}&longitude=${LON}&start_date=${start}&end_date=${end}&daily=precipitation_sum,precipitation_hours&hourly=precipitation&timezone=Asia%2FBangkok`;
   const r = await fetch(url);
   if (!r.ok) throw new Error(`Open-Meteo archive: HTTP ${r.status}`);
@@ -560,7 +581,9 @@ async function fetchOpenMeteoArchive() {
 }
 
 async function fetchOpenMeteoForecast() {
-  const url = `https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}&daily=precipitation_sum,precipitation_probability_max,temperature_2m_max,temperature_2m_min&current=temperature_2m,relative_humidity_2m,precipitation,rain,weather_code,wind_speed_10m&hourly=precipitation,precipitation_probability&timezone=Asia%2FBangkok&forecast_days=14`;
+  // past_days=7 → ได้ข้อมูลย้อนหลังจาก endpoint เดียวกับพยากรณ์ ใช้เติมช่วงที่ archive API
+  // ยังไม่อัปเดต (archive มี lag ได้หลายวัน) เพื่อไม่ให้ panel ย้อนหลังกลายเป็นช่องว่าง
+  const url = `https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}&daily=precipitation_sum,precipitation_probability_max,temperature_2m_max,temperature_2m_min&current=temperature_2m,relative_humidity_2m,precipitation,rain,weather_code,wind_speed_10m&hourly=precipitation,precipitation_probability&timezone=Asia%2FBangkok&forecast_days=14&past_days=7`;
   const r = await fetch(url);
   if (!r.ok) throw new Error(`Open-Meteo forecast: HTTP ${r.status}`);
   return await r.json();
@@ -599,42 +622,84 @@ function getCurrentRainStatus(omCurrent) {
   return { status: 'ไม่ทราบ', desc: `code=${wc}`, isRainy: precip >= 0.1 };
 }
 
+// รวมชั่วโมงฝนที่ติดกันเป็น 1 event — เก็บรายชั่วโมงไว้ด้วย เพื่อให้ตัดแบ่งตามวันได้แม่นยำ
+function summarizeHours(hours) {
+  return {
+    hourList: hours,
+    startMs: hours[0].startMs,
+    endMs: hours[hours.length - 1].startMs + 3600000, // ปลายช่วงแบบ exclusive
+    hours: hours.length,
+    totalMm: hours.reduce((s, h) => s + h.precip, 0),
+    maxMm: Math.max(...hours.map(h => h.precip)),
+    maxProb: Math.max(...hours.map(h => h.prob)),
+  };
+}
+
 function detectRainEvents(hourly, thresholdMm = 0.1, thresholdProb = 60) {
   const events = [];
+  const times = hourly?.time || [];
   let current = null;
 
-  for (let i = 0; i < hourly.time.length; i++) {
-    const time = hourly.time[i];
-    const precip = hourly.precipitation?.[i] || 0;
-    const prob = hourly.precipitation_probability?.[i] || 0;
+  for (let i = 0; i < times.length; i++) {
+    const precip = hourly.precipitation?.[i] ?? 0;
+    const prob = hourly.precipitation_probability?.[i] ?? 0;
 
     // ถือว่าฝนตก ถ้ามีปริมาณจริง หรือโอกาสสูงพอ
     const isRainy = precip >= thresholdMm || prob >= thresholdProb;
 
     if (isRainy) {
-      if (!current) {
-        current = {
-          start: time,
-          end: time,
-          hours: 1,
-          totalMm: precip,
-          maxMm: precip,
-          maxProb: prob,
-        };
-      } else {
-        current.end = time;
-        current.hours += 1;
-        current.totalMm += precip;
-        current.maxMm = Math.max(current.maxMm, precip);
-        current.maxProb = Math.max(current.maxProb, prob);
-      }
+      const hour = { startMs: bkkToEpoch(times[i]), precip, prob };
+      if (!current) current = [hour];
+      else current.push(hour);
     } else if (current) {
-      events.push(current);
+      events.push(summarizeHours(current));
       current = null;
     }
   }
-  if (current) events.push(current);
+  if (current) events.push(summarizeHours(current));
   return events;
+}
+
+// จัดกลุ่ม event ตามวัน — event ที่คร่อมเที่ยงคืนจะถูก "ตัดแบ่ง" ให้ปรากฏในทั้งสองวัน
+// (เดิมใช้ e.start.slice(0,10) ทำให้ฝน 23:00-02:00 ถูกนับเป็นของเมื่อวานทั้งก้อน
+//  และหายไปจากหน้าของวันถัดไป)
+function groupEventsByDay(events) {
+  const byDate = {};
+  for (const e of events) {
+    const perDay = new Map();
+    for (const h of e.hourList) {
+      const d = bkkDateStr(h.startMs);
+      if (!perDay.has(d)) perDay.set(d, []);
+      perDay.get(d).push(h);
+    }
+    for (const [date, hours] of perDay) {
+      const seg = summarizeHours(hours);
+      seg.continuesFromPrevDay = seg.startMs !== e.startMs;
+      seg.continuesToNextDay = seg.endMs !== e.endMs;
+      if (!byDate[date]) byDate[date] = [];
+      byDate[date].push(seg);
+    }
+  }
+  return byDate;
+}
+
+// วันไหนบ้างที่ "มีข้อมูลรายชั่วโมงครบ" — ใช้แยก "ไม่มีฝนตก" ออกจาก "ยังไม่มีข้อมูล"
+function coveredDates(hourly) {
+  const perDay = new Map();
+  const times = hourly?.time || [];
+  const precip = hourly?.precipitation || [];
+  for (let i = 0; i < times.length; i++) {
+    if (precip[i] == null) continue;
+    const d = times[i].slice(0, 10);
+    perDay.set(d, (perDay.get(d) || 0) + 1);
+  }
+  return new Set([...perDay].filter(([, n]) => n >= 24).map(([d]) => d));
+}
+
+// ฝนกำลังตกจริงหรือไม่ ตามค่าสังเกตการณ์ล่าสุด (ใช้ร่วมกันหลายที่ ไม่ให้ logic แตกกัน)
+function isObservedRaining(omCurrent) {
+  if (!omCurrent) return false;
+  return getCurrentRainStatus(omCurrent).isRainy;
 }
 
 function classifyIntensity(maxMm) {
@@ -646,10 +711,6 @@ function classifyIntensity(maxMm) {
   return                  { level: 'เบา',      color: '#06b6d4' };
 }
 
-function formatHour(date) {
-  return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
-}
-
 function renderRainEvents(forecast, currentObs = null) {
   const container = document.getElementById('rain-events');
   container.innerHTML = '';
@@ -659,28 +720,20 @@ function renderRainEvents(forecast, currentObs = null) {
     return;
   }
 
-  const events = detectRainEvents(forecast.hourly);
+  const byDate = groupEventsByDay(detectRainEvents(forecast.hourly));
 
-  // Group by date (YYYY-MM-DD in local time, but forecast uses Asia/Bangkok TZ)
-  const byDate = {};
-  for (const e of events) {
-    const date = e.start.slice(0, 10);
-    if (!byDate[date]) byDate[date] = [];
-    byDate[date].push(e);
-  }
-
-  // วันนี้ + พรุ่งนี้ (ใช้เวลาท้องถิ่น Asia/Bangkok)
-  const today = new Date();
-  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
-  const tomorrowDate = new Date(today.getTime() + 86400000);
-  const tomorrowStr = `${tomorrowDate.getFullYear()}-${String(tomorrowDate.getMonth() + 1).padStart(2,'0')}-${String(tomorrowDate.getDate()).padStart(2,'0')}`;
+  // วันนี้ + พรุ่งนี้ ตามวันที่ในไทย (เดิมอ่านจากนาฬิกาเครื่องผู้ใช้ ทำให้เปิดจากนอกไทย
+  // แล้วได้คนละวันกับ key ที่ Open-Meteo ส่งมา)
+  const todayStr = bkkDateStr();
+  const tomorrowStr = addDays(todayStr, 1);
 
   const nowMs = Date.now();
+  // ป้าย "กำลังตก" ต้องมี observation จริงยืนยัน ไม่ใช่เชื่อ forecast อย่างเดียว
+  const rainingNow = isObservedRaining(currentObs);
 
   for (const date of [todayStr, tomorrowStr]) {
     const dayEvents = byDate[date] || [];
-    const dayDate = new Date(date + 'T00:00:00');
-    const dayName = dayDate.toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'short' });
+    const dayName = bkkDayLabel(date, { weekday: 'long', day: 'numeric', month: 'short' });
     const totalMm = dayEvents.reduce((s, e) => s + e.totalMm, 0);
 
     const dayDiv = document.createElement('div');
@@ -694,28 +747,27 @@ function renderRainEvents(forecast, currentObs = null) {
       `;
     } else {
       const cards = dayEvents.map(e => {
-        const startTime = new Date(e.start);
-        // end time ของ event คือเวลาสุดท้ายที่ยังมีฝน -> +1 ชม. เพื่อแสดงช่วงเวลา
-        const endTime = new Date(new Date(e.end).getTime() + 3600000);
         const intensity = classifyIntensity(e.maxMm);
 
-        // ถ้า event ครอบคลุมเวลาปัจจุบัน (วันนี้) → ติดป้าย "กำลังตก"
-        const isOngoing = date === todayStr && startTime.getTime() <= nowMs && endTime.getTime() >= nowMs;
-        // ป้าย "กำลังตก" ต้อง require observation จริง (forecast + observed ตรงกัน) — ไม่ใช่แค่เช็คจากเวลา forecast
-        const isRainingNow = currentObs && (
-          (currentObs.precipitation ?? 0) >= 0.1 ||
-          ((currentObs.weather_code ?? -1) >= 51 && (currentObs.weather_code ?? -1) <= 99)
-        );
-        const ongoingBadge = (isOngoing && isRainingNow)
+        // event ครอบคลุมเวลาปัจจุบันหรือไม่ — เทียบด้วย epoch จริงทั้งคู่
+        const isOngoing = e.startMs <= nowMs && e.endMs > nowMs;
+        const ongoingBadge = (isOngoing && rainingNow)
           ? '<span class="rain-now-indicator">⚡ กำลังตก</span>'
+          : '';
+        const carry = [
+          e.continuesFromPrevDay ? '↩ ต่อจากเมื่อวาน' : '',
+          e.continuesToNextDay ? '↪ ต่อถึงวันถัดไป' : '',
+        ].filter(Boolean).join(' ');
+        const carryNote = carry
+          ? `<span class="rain-event-duration">${carry}</span>`
           : '';
 
         return `
           <div class="rain-event" style="border-left-color:${intensity.color}">
             <div class="rain-event-time">
-              ⏰ ${formatHour(startTime)} - ${formatHour(endTime)}
+              ⏰ ${bkkHour(e.startMs)} - ${bkkHour(e.endMs)}
               <span class="rain-event-duration">(${e.hours} ชม.)</span>
-              ${ongoingBadge}
+              ${ongoingBadge}${carryNote}
             </div>
             <div class="rain-event-stats">
               <div class="rain-event-mm">${e.totalMm.toFixed(1)} มม.</div>
@@ -744,51 +796,82 @@ function renderRainEvents(forecast, currentObs = null) {
 }
 
 // ============ Rain History (past) ============
-function renderRainHistory(archive) {
+// รวม hourly ของ archive กับ hourly ย้อนหลังของ forecast (past_days) ให้เป็นชุดเดียว
+// archive API มี lag ได้หลายวัน — ถ้าใช้ archive อย่างเดียว วันที่ยังไม่ถูกเผยแพร่จะกลายเป็น
+// ช่องว่างที่หน้าเว็บเคยแสดงผิดเป็น "ไม่มีฝนตก"
+function mergePastHourly(archive, forecast) {
+  const time = [];
+  const precipitation = [];
+  const seen = new Set();
+
+  const push = (t, p) => {
+    if (p == null || seen.has(t)) return;
+    seen.add(t);
+    time.push(t);
+    precipitation.push(p);
+  };
+
+  (archive?.hourly?.time || []).forEach((t, i) => push(t, archive.hourly.precipitation?.[i]));
+  (forecast?.hourly?.time || []).forEach((t, i) => push(t, forecast.hourly.precipitation?.[i]));
+
+  // detectRainEvents ต้องการลำดับเวลาที่เรียงแล้ว จึงต้อง sort หลังรวมสองแหล่ง
+  const order = time.map((t, i) => i).sort((a, b) => (time[a] < time[b] ? -1 : time[a] > time[b] ? 1 : 0));
+  return {
+    time: order.map(i => time[i]),
+    precipitation: order.map(i => precipitation[i]),
+  };
+}
+
+function renderRainHistory(archive, forecast) {
   const container = document.getElementById('rain-history');
   container.innerHTML = '';
 
-  if (!archive.hourly?.time?.length) {
+  const hourly = mergePastHourly(archive, forecast);
+  if (!hourly.time.length) {
     container.innerHTML = '<div class="rain-day-empty">⚠️ ไม่มีข้อมูล hourly</div>';
     return;
   }
 
-  // Archive hourly ไม่มี precipitation_probability → threshold แค่ precipitation ≥ 0.1mm
-  const events = detectRainEvents(archive.hourly, 0.1, 999); // thresholdProb=999 บังคับใช้ precipitation อย่างเดียว
+  // hourly ย้อนหลังไม่มี precipitation_probability → thresholdProb=999 บังคับใช้ปริมาณจริงอย่างเดียว
+  const byDate = groupEventsByDay(detectRainEvents(hourly, 0.1, 999));
+  const covered = coveredDates(hourly);
 
-  // Group by date
-  const byDate = {};
-  for (const e of events) {
-    const date = e.start.slice(0, 10);
-    if (!byDate[date]) byDate[date] = [];
-    byDate[date].push(e);
-  }
-
-  // ย้อนหลัง 7 วัน (ไม่รวมวันนี้ เพราะยังไม่สมบูรณ์ใน archive)
+  // ย้อนหลัง 7 วัน ตามวันที่ในไทย (ไม่รวมวันนี้ เพราะยังไม่จบวัน)
+  const todayStr = bkkDateStr();
   const dates = [];
-  for (let i = 1; i <= 7; i++) {
-    const d = new Date(Date.now() - i * 86400000);
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    dates.push(`${y}-${m}-${day}`);
-  }
+  for (let i = 7; i >= 1; i--) dates.push(addDays(todayStr, -i));
 
   let totalEvents = 0;
   let totalMm = 0;
+  let missingDays = 0;
 
   for (const date of dates) {
     const dayEvents = byDate[date] || [];
-    const dayDate = new Date(date + 'T00:00:00');
-    const dayName = dayDate.toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'short' });
+    const dayName = bkkDayLabel(date, { weekday: 'long', day: 'numeric', month: 'short' });
+    const hasData = covered.has(date);
     const dayTotal = dayEvents.reduce((s, e) => s + e.totalMm, 0);
-    totalEvents += dayEvents.length;
-    totalMm += dayTotal;
+
+    if (hasData) {
+      totalEvents += dayEvents.length;
+      totalMm += dayTotal;
+    } else {
+      missingDays += 1;
+    }
 
     const dayDiv = document.createElement('div');
     dayDiv.style.marginBottom = '16px';
 
-    if (dayEvents.length === 0) {
+    if (!hasData) {
+      // แยก "ยังไม่มีข้อมูล" ออกจาก "ไม่มีฝนตก" — เดิมแสดงเหมือนกันหมด ทำให้เข้าใจผิดว่าฝนไม่ตก
+      dayDiv.innerHTML = `
+        <div class="rain-day-header">
+          <h3>📅 ${dayName}</h3>
+        </div>
+        <div class="rain-day-empty" style="padding:10px 14px;font-size:0.85em;background:#f8fafc;border-color:#cbd5e0;color:#64748b;">
+          ⏳ ยังไม่มีข้อมูล (แหล่งข้อมูลย้อนหลังยังไม่อัปเดตวันนี้)
+        </div>
+      `;
+    } else if (dayEvents.length === 0) {
       dayDiv.innerHTML = `
         <div class="rain-day-header">
           <h3>📅 ${dayName}</h3>
@@ -799,13 +882,11 @@ function renderRainHistory(archive) {
       `;
     } else {
       const cards = dayEvents.map(e => {
-        const startTime = new Date(e.start);
-        const endTime = new Date(new Date(e.end).getTime() + 3600000);
         const intensity = classifyIntensity(e.maxMm);
         return `
           <div class="rain-event" style="border-left-color:${intensity.color}">
             <div class="rain-event-time">
-              ⏰ ${formatHour(startTime)} - ${formatHour(endTime)}
+              ⏰ ${bkkHour(e.startMs)} - ${bkkHour(e.endMs)}
               <span class="rain-event-duration">(${e.hours} ชม.)</span>
             </div>
             <div class="rain-event-stats">
@@ -829,13 +910,14 @@ function renderRainHistory(archive) {
     container.appendChild(dayDiv);
   }
 
-  // สรุปรวม 7 วัน
+  // สรุปรวม 7 วัน — นับเฉพาะวันที่มีข้อมูลจริง
   const summary = document.createElement('div');
   summary.style.cssText = 'margin-top:16px;padding:14px 18px;background:linear-gradient(135deg,#eef2ff 0%,#e0e7ff 100%);border-radius:12px;display:flex;justify-content:space-around;flex-wrap:wrap;gap:10px;font-size:0.9em;color:#1e3c72;font-weight:600;';
   summary.innerHTML = `
-    <span>📊 7 วันย้อนหลัง</span>
+    <span>📊 ${dates.length - missingDays} วันที่มีข้อมูล</span>
     <span>ฝนตกรวม <b style="color:#2563eb">${totalEvents} ครั้ง</b></span>
     <span>ปริมาณรวม <b style="color:#2563eb">${totalMm.toFixed(1)} มม.</b></span>
+    ${missingDays ? `<span style="color:#64748b;font-weight:500;">⏳ ขาดข้อมูล ${missingDays} วัน</span>` : ''}
   `;
   container.appendChild(summary);
 }
@@ -848,6 +930,7 @@ const COCONUT_WEEKLY_TARGET_MM = 50;  // เป้าหมายต่อสั
 const COCONUT_DAILY_TARGET_MM = 8;    // เป้าหมายต่อวัน (มม.) — เหมาะสม
 
 function classifyCoconutDay(mm) {
+  if (mm == null) return { icon: '⏳', label: 'ไม่มีข้อมูล', color: '#94a3b8' };
   if (mm >= 8)  return { icon: '✅', label: 'ดี',       color: '#15803d' };
   if (mm >= 4)  return { icon: '🟢', label: 'พอ',       color: '#65a30d' };
   if (mm >= 2)  return { icon: '🟡', label: 'น้อย',     color: '#ca8a04' };
@@ -880,29 +963,47 @@ function coconutIrrigationAdvice(weeklyDeficitMm) {
   return { litersPerWeek, litersPerDay, freq };
 }
 
+// รวมฝนรายวันจาก archive (ข้อมูลจริง มาก่อน) + forecast (พยากรณ์ / past_days) → map วันที่ → มม.
+function dailyRainMap(archive, forecast) {
+  const map = new Map();
+  const add = (times, sums) => {
+    (times || []).forEach((d, i) => {
+      const v = sums?.[i];
+      if (v != null && !map.has(d)) map.set(d, v);
+    });
+  };
+  add(archive?.daily?.time, archive?.daily?.precipitation_sum);
+  add(forecast?.daily?.time, forecast?.daily?.precipitation_sum);
+  return map;
+}
+
 function renderCoconutAnalysis(forecast, archive) {
   const container = document.getElementById('coconut-analysis');
   container.innerHTML = '';
 
-  // === สัปดาห์นี้ (forecast 7 วัน) ===
-  const forecastTimes = forecast.daily?.time || [];
-  const forecastPrecip = forecast.daily?.precipitation_sum || [];
+  // เลือกวันด้วย "วันที่" ไม่ใช่ index — forecast.daily มี past_days ปนอยู่ด้วยแล้ว
+  // การ slice ตามตำแหน่งจะหยิบวันย้อนหลังมาแสดงเป็นพยากรณ์
+  const todayStr = bkkDateStr();
+  const rainByDate = dailyRainMap(archive, forecast);
+
+  // === สัปดาห์นี้ (วันนี้ + อีก 6 วัน) ===
   const forecastDays = [];
-  for (let i = 0; i < Math.min(7, forecastTimes.length); i++) {
-    forecastDays.push({ date: forecastTimes[i], mm: forecastPrecip[i] ?? 0 });
+  for (let i = 0; i < 7; i++) {
+    const d = addDays(todayStr, i);
+    forecastDays.push({ date: d, mm: rainByDate.has(d) ? rainByDate.get(d) : null });
   }
 
-  // === สัปดาห์ที่แล้ว (archive 7 วันล่าสุด) ===
-  const archiveTimes = archive.daily?.time || [];
-  const archivePrecip = archive.daily?.precipitation_sum || [];
+  // === สัปดาห์ที่แล้ว (7 วันก่อนวันนี้) ===
   const archiveDays = [];
-  const startIdx = Math.max(0, archiveTimes.length - 7);
-  for (let i = startIdx; i < archiveTimes.length; i++) {
-    archiveDays.push({ date: archiveTimes[i], mm: archivePrecip[i] ?? 0 });
+  for (let i = 7; i >= 1; i--) {
+    const d = addDays(todayStr, -i);
+    archiveDays.push({ date: d, mm: rainByDate.has(d) ? rainByDate.get(d) : null });
   }
 
-  const forecastTotal = forecastDays.reduce((s, d) => s + d.mm, 0);
-  const archiveTotal = archiveDays.reduce((s, d) => s + d.mm, 0);
+  const sumMm = days => days.reduce((s, d) => s + (d.mm ?? 0), 0);
+  const forecastTotal = sumMm(forecastDays);
+  const archiveTotal = sumMm(archiveDays);
+  const archiveMissing = archiveDays.filter(d => d.mm == null).length;
 
   const fStatus = classifyCoconutWeek(forecastTotal);
   const aStatus = classifyCoconutWeek(archiveTotal);
@@ -947,10 +1048,13 @@ function renderCoconutAnalysis(forecast, archive) {
       <div class="coconut-week-total">ฝนรวม <b>${archiveTotal.toFixed(1)} มม.</b> / เป้า ${COCONUT_WEEKLY_TARGET_MM} มม.</div>
       <div class="coconut-week-desc">${aStatus.desc}</div>
   `;
-  if (archiveTotal < COCONUT_WEEKLY_TARGET_MM) {
+  if (aDeficit > 0) {
+    // เดิมพิมพ์ archiveTotal (ปริมาณฝนที่ตกจริง) ในช่อง "ขาด" ซึ่งกลับความหมาย —
+    // ตัวเลขที่ถูกต้องคือส่วนต่างจากเป้า (aDeficit)
     html += `
       <div class="coconut-advice" style="color:#718096;">
-        📊 ย้อนหลัง: ขาด ${archiveTotal.toFixed(1)} มม. จากเป้า (ถ้ามะพร้าวยังไม่ฟื้นตัว ให้รดเสริม)
+        📊 ย้อนหลัง: ขาด ${aDeficit.toFixed(1)} มม. จากเป้า ${COCONUT_WEEKLY_TARGET_MM} มม. (ถ้ามะพร้าวยังไม่ฟื้นตัว ให้รดเสริม)
+        ${archiveMissing ? `<br><span style="color:#94a3b8;">⏳ ขาดข้อมูล ${archiveMissing} วัน — ยอดจริงอาจสูงกว่านี้</span>` : ''}
       </div>
     `;
   } else {
@@ -972,35 +1076,23 @@ function renderCoconutAnalysis(forecast, archive) {
     <div class="coconut-daily-grid">
   `;
 
-  // Past days (oldest first)
-  archiveDays.forEach(day => {
+  const dayCell = (day, cls) => {
     const status = classifyCoconutDay(day.mm);
-    const d = new Date(day.date + 'T00:00:00');
-    const dayLabel = d.toLocaleDateString('th-TH', { weekday: 'short', day: 'numeric', month: 'short' });
-    html += `
-      <div class="coconut-day past">
+    const dayLabel = bkkDayLabel(day.date, { weekday: 'short', day: 'numeric', month: 'short' });
+    const mmText = day.mm == null ? '—' : `${day.mm.toFixed(1)} มม.`;
+    return `
+      <div class="coconut-day ${cls}">
         <div class="coconut-day-label">${dayLabel}</div>
         <div class="coconut-day-icon">${status.icon}</div>
-        <div class="coconut-day-mm" style="color:${status.color};">${day.mm.toFixed(1)} มม.</div>
+        <div class="coconut-day-mm" style="color:${status.color};">${mmText}</div>
         <div class="coconut-day-status" style="color:${status.color};">${status.label}</div>
       </div>
     `;
-  });
+  };
 
-  // Future days
-  forecastDays.forEach(day => {
-    const status = classifyCoconutDay(day.mm);
-    const d = new Date(day.date + 'T00:00:00');
-    const dayLabel = d.toLocaleDateString('th-TH', { weekday: 'short', day: 'numeric', month: 'short' });
-    html += `
-      <div class="coconut-day future">
-        <div class="coconut-day-label">${dayLabel}</div>
-        <div class="coconut-day-icon">${status.icon}</div>
-        <div class="coconut-day-mm" style="color:${status.color};">${day.mm.toFixed(1)} มม.</div>
-        <div class="coconut-day-status" style="color:${status.color};">${status.label}</div>
-      </div>
-    `;
-  });
+  // Past days (oldest first) แล้วต่อด้วยวันนี้ + พยากรณ์
+  archiveDays.forEach(day => { html += dayCell(day, 'past'); });
+  forecastDays.forEach(day => { html += dayCell(day, 'future'); });
 
   html += '</div>';
 
@@ -1025,33 +1117,49 @@ async function render() {
   status.textContent = '🔄 กำลังโหลดข้อมูล...';
 
   try {
-    const [rain, wind, archive, forecast] = await Promise.all([
+    // allSettled ไม่ใช่ all — เดิมถ้า Open-Meteo ฝั่งใดฝั่งหนึ่งล้ม ทั้งหน้าจะค้างที่ "กำลังโหลด..."
+    // ทั้งที่อีกแหล่งมีข้อมูลพร้อมแสดงแล้ว
+    const results = await Promise.allSettled([
       fetchLongdoRain(),
       fetchLongdoWind(),
       fetchOpenMeteoArchive(),
       fetchOpenMeteoForecast(),
     ]);
+    const [rain, wind, archive, forecast] = results.map(r => (r.status === 'fulfilled' ? r.value : null));
+
+    const failures = [];
+    if (results[2].status === 'rejected') failures.push(`archive (${results[2].reason.message})`);
+    if (results[3].status === 'rejected') failures.push(`forecast (${results[3].reason.message})`);
+    if (failures.length) console.warn('⚠️ Open-Meteo failed:', failures.join(', '));
 
     // Header
     document.getElementById('generated-at').textContent = '⏱️ อัปเดต: ' + new Date().toLocaleTimeString('th-TH');
 
     // === Current rain card (Open-Meteo PRIMARY + Longdo SECONDARY) ===
-    const omCur = forecast.current || {};
+    const omCur = forecast?.current || {};
     const hasOmCurrent = omCur.weather_code !== undefined && omCur.weather_code !== null;
     const { status: rainStatus, desc: rainDesc } = getCurrentRainStatus(omCur);
-    document.getElementById('rain-now').textContent = rainStatus;
     let rainDescFull = '';
     if (hasOmCurrent) {
+      document.getElementById('rain-now').textContent = rainStatus;
       rainDescFull = `🌐 Open-Meteo: ${rainDesc}`;
+    } else if (rain?.rain) {
+      // Open-Meteo ล่ม → ใช้ Longdo แทน ดีกว่าโชว์ "ไม่ทราบ" ทั้งที่ยังมีอีกแหล่งอยู่
+      document.getElementById('rain-now').textContent =
+        rain.rain.intensity > 0 ? `🌧️ ${rain.rain.description}` : '☀️ ไม่มีฝน';
+      rainDescFull = '⚠️ Open-Meteo ไม่ตอบสนอง — ใช้ข้อมูล Longdo แทน';
     } else {
-      rainDescFull = `⚠️ Open-Meteo current ไม่มีข้อมูล (weather_code=${omCur.weather_code})`;
+      document.getElementById('rain-now').textContent = '-';
+      rainDescFull = '⚠️ ไม่มีข้อมูลจากทั้ง 2 แหล่ง';
     }
     if (rain && rain.rain) {
       rainDescFull += ` • Longdo: ${rain.rain.description} (${rain.rain.intensity}/5)`;
       // เตือนถ้า 2 แหล่งไม่ตรงกัน (Open-Meteo บอกฝนตก แต่ Longdo บอกไม่ตก หรือกลับกัน)
-      const omRaining = (omCur.precipitation ?? 0) >= 0.1 || ((omCur.weather_code ?? -1) >= 51);
+      // ใช้ helper ตัวเดียวกับป้าย "กำลังตก" — เดิมเช็ค weather_code >= 51 ตรงนี้ ทำให้
+      // รหัสหิมะ/ลูกเห็บ (71-77, 85-86) ถูกนับเป็นฝน คนละเกณฑ์กับ getCurrentRainStatus
+      const omRaining = hasOmCurrent && isObservedRaining(omCur);
       const longdoRaining = rain.rain.intensity > 0;
-      if (omRaining !== longdoRaining) {
+      if (hasOmCurrent && omRaining !== longdoRaining) {
         rainDescFull += ` ⚠️ ข้อมูลไม่ตรงกัน`;
       }
     } else {
@@ -1069,55 +1177,108 @@ async function render() {
       document.getElementById('wind-desc').textContent = '⚠️ Longdo wind ไม่ตอบสนอง';
     }
 
-    // Temp card
+    // Temp card — ต้องเคลียร์ข้อความ "กำลังโหลด..." ด้วยเมื่อไม่มีข้อมูล ไม่งั้นค้างอยู่ตลอด
     if (omCur.temperature_2m != null) {
       document.getElementById('temp-now').textContent = `${omCur.temperature_2m.toFixed(1)}°C`;
-      document.getElementById('temp-desc').textContent = `ความชื้น ${omCur.relative_humidity_2m || '-'}%`;
+      document.getElementById('temp-desc').textContent = `ความชื้น ${omCur.relative_humidity_2m ?? '-'}%`;
+    } else {
+      document.getElementById('temp-now').textContent = '-';
+      document.getElementById('temp-desc').textContent = '⚠️ ไม่มีข้อมูลอุณหภูมิ';
     }
 
-    // Rain week card
-    const last7 = (archive.daily.precipitation_sum || []).slice(-7).reduce((a, b) => a + (b || 0), 0);
-    document.getElementById('rain-week').textContent = `${last7.toFixed(1)} มม.`;
+    // Rain week card — นับ 7 วันที่ผ่านมาตามวันที่จริง แทนการ slice(-7) ตามตำแหน่ง
+    // (ถ้า archive ยังไม่อัปเดต slice(-7) จะไปหยิบวันที่เก่ากว่ามาแทน โดยยังพาดหัวว่า "7 วันล่าสุด")
+    const todayStr = bkkDateStr();
+    const rainByDate = dailyRainMap(archive, forecast);
+    let last7 = 0;
+    let last7Missing = 0;
+    for (let i = 7; i >= 1; i--) {
+      const d = addDays(todayStr, -i);
+      if (rainByDate.has(d)) last7 += rainByDate.get(d);
+      else last7Missing += 1;
+    }
+    document.getElementById('rain-week').textContent =
+      last7Missing === 7 ? '-' : `${last7.toFixed(1)} มม.`;
 
-    // Rain events (today + tomorrow) — pass current observation for accurate "กำลังตก" badge
-    renderRainEvents(forecast, omCur);
+    if (forecast) {
+      // Rain events (today + tomorrow) — pass current observation for accurate "กำลังตก" badge
+      renderRainEvents(forecast, omCur);
+      // Forecast grid
+      renderForecastGrid(forecast);
+    } else {
+      panelMessage('rain-events', 'โหลดพยากรณ์ไม่สำเร็จ');
+      panelMessage('forecast-grid', 'โหลดพยากรณ์ไม่สำเร็จ');
+    }
 
-    // Rain history (past 7 days)
-    renderRainHistory(archive);
-
-    // Coconut water analysis
-    renderCoconutAnalysis(forecast, archive);
-
-    // Chart
-    renderChart(archive, forecast);
-
-    // Forecast grid
-    renderForecastGrid(forecast);
+    if (archive || forecast) {
+      // Rain history (past 7 days)
+      renderRainHistory(archive, forecast);
+      // Coconut water analysis
+      renderCoconutAnalysis(forecast, archive);
+      // Chart
+      renderChart(archive, forecast);
+    } else {
+      panelMessage('rain-history', 'โหลดข้อมูลย้อนหลังไม่สำเร็จ');
+      panelMessage('coconut-analysis', 'โหลดข้อมูลไม่สำเร็จ');
+    }
 
     // Radar section removed - Longdo free tier doesn't provide tile endpoint
     // (See https://weather.longdo.com/docs for paid tier access)
 
-    status.textContent = '🟢 อัปเดตล่าสุด: ' + new Date().toLocaleTimeString('th-TH');
-    console.log('✅ All data loaded at', new Date().toISOString());
+    if (failures.length) {
+      status.innerHTML = `<span style="color:#b45309">⚠️ บางแหล่งข้อมูลล้มเหลว: ${failures.join(', ')} — แสดงเท่าที่มี (${new Date().toLocaleTimeString('th-TH')})</span>`;
+    } else {
+      status.textContent = '🟢 อัปเดตล่าสุด: ' + new Date().toLocaleTimeString('th-TH');
+      console.log('✅ All data loaded at', new Date().toISOString());
+    }
   } catch (e) {
     console.error('❌ Render failed:', e);
     status.innerHTML = '<span style="color:#dc2626">⚠️ โหลดข้อมูลไม่สำเร็จ: ' + e.message + ' (จะลองใหม่ใน 5 นาที)</span>';
   }
 }
 
+function panelMessage(id, msg) {
+  const el = document.getElementById(id);
+  if (el) {
+    el.innerHTML = `<div class="rain-day-empty" style="background:#fef2f2;border-color:#fecaca;color:#b91c1c;">⚠️ ${msg}</div>`;
+  }
+}
+
 function renderChart(archive, forecast) {
-  const archiveLabels = archive.daily.time.map(d => {
-    const date = new Date(d);
-    return `${date.getDate()} ${['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'][date.getMonth()]}`;
+  // สร้างแกนเวลาจาก "วันที่จริง" แล้ว map ค่าลงไป — เดิมต่อ array ของสองแหล่งเข้าด้วยกัน
+  // ตามตำแหน่ง ถ้า archive ขาดวันไป แท่งพยากรณ์จะเลื่อนไปตรงกับวันที่ผิด
+  const todayStr = bkkDateStr();
+  const minDate = addDays(todayStr, -14);
+
+  const pastMap = new Map();
+  const futureMap = new Map();
+  const probMap = new Map();
+
+  const aTimes = archive?.daily?.time || [];
+  const aSums = archive?.daily?.precipitation_sum || [];
+  aTimes.forEach((d, i) => {
+    if (aSums[i] != null && d < todayStr && d >= minDate) pastMap.set(d, aSums[i]);
   });
-  const forecastLabels = forecast.daily.time.map(d => {
-    const date = new Date(d);
-    return `${date.getDate()} ${['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'][date.getMonth()]}`;
+
+  const fTimes = forecast?.daily?.time || [];
+  const fSums = forecast?.daily?.precipitation_sum || [];
+  const fProb = forecast?.daily?.precipitation_probability_max || [];
+  fTimes.forEach((d, i) => {
+    if (d < todayStr) {
+      // เติมเฉพาะวันที่ archive ยังไม่มี (archive = ข้อมูลจริง ให้ความสำคัญก่อน)
+      if (d >= minDate && !pastMap.has(d) && fSums[i] != null) pastMap.set(d, fSums[i]);
+    } else {
+      if (fSums[i] != null) futureMap.set(d, fSums[i]);
+      if (fProb[i] != null) probMap.set(d, fProb[i]);
+    }
   });
-  const allLabels = [...archiveLabels, ...forecastLabels];
-  const allArchive = [...(archive.daily.precipitation_sum || [])];
-  const allForecast = [...Array(archiveLabels.length).fill(null), ...(forecast.daily.precipitation_sum || [])];
-  const allProb = [...Array(archiveLabels.length).fill(null), ...(forecast.daily.precipitation_probability_max || [])];
+
+  // "YYYY-MM-DD" เรียงแบบ string = เรียงตามเวลา
+  const allDates = [...new Set([...pastMap.keys(), ...futureMap.keys()])].sort();
+  const allLabels = allDates.map(d => bkkDayLabel(d, { day: 'numeric', month: 'short' }));
+  const allArchive = allDates.map(d => (pastMap.has(d) ? pastMap.get(d) : null));
+  const allForecast = allDates.map(d => (futureMap.has(d) ? futureMap.get(d) : null));
+  const allProb = allDates.map(d => (probMap.has(d) ? probMap.get(d) : null));
 
   const ctx = document.getElementById('rainChart').getContext('2d');
   if (chartObj) chartObj.destroy();
@@ -1173,17 +1334,21 @@ function renderChart(archive, forecast) {
 function renderForecastGrid(forecast) {
   const grid = document.getElementById('forecast-grid');
   grid.innerHTML = '';
-  const days = forecast.daily.time;
-  const dayNames = ['อา.', 'จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.'];
+  const days = forecast.daily?.time || [];
+  const todayStr = bkkDateStr();
 
   for (let i = 0; i < days.length; i++) {
-    const date = new Date(days[i]);
-    const rain = forecast.daily.precipitation_sum[i] || 0;
-    const prob = forecast.daily.precipitation_probability_max[i] || 0;
-    const tmax = forecast.daily.temperature_2m_max[i];
-    const tmin = forecast.daily.temperature_2m_min[i];
-    const dayName = dayNames[date.getDay()];
-    const dateLabel = `${date.getDate()}/${date.getMonth() + 1}`;
+    // forecast.daily มี past_days ปนมาด้วย — panel นี้แสดงเฉพาะวันนี้เป็นต้นไป
+    if (days[i] < todayStr) continue;
+
+    const rain = forecast.daily.precipitation_sum?.[i] || 0;
+    const prob = forecast.daily.precipitation_probability_max?.[i] || 0;
+    const tmax = forecast.daily.temperature_2m_max?.[i];
+    const tmin = forecast.daily.temperature_2m_min?.[i];
+    // เดิม new Date("2026-08-16") ถูกตีความเป็นเที่ยงคืน UTC แล้วอ่านวันด้วย getDay()
+    // ตาม timezone ของเครื่อง → ชื่อวันเพี้ยนไป 1 วันสำหรับผู้ใช้ฝั่งตะวันตกของ UTC
+    const dayName = bkkDayLabel(days[i], { weekday: 'short' });
+    const dateLabel = bkkDayLabel(days[i], { day: 'numeric', month: 'numeric' });
     let icon = '☀️';
     if (rain > 5 || prob > 80) icon = '⛈️';
     else if (rain > 2 || prob > 60) icon = '🌧️';
