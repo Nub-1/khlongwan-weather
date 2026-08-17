@@ -918,15 +918,31 @@ function bkkDayLabel(dateStr, opts) {
 }
 
 // ============ Locations ============
-const DEFAULT_LOCATION = {
-  id: 'khlongwan',
-  name: 'แปลงมะพร้าวคลองวาฬ',
-  detail: 'อ.สามร้อยยอด จ.ประจวบคีรีขันธ์',
-  lat: 11.7563340,
-  lon: 99.7684976,
-  coconut: true,
-  builtin: true,
-};
+// พื้นที่ที่ติดมากับตัวโปรแกรม — มีอยู่ทุกเครื่องที่เปิด ไม่ต้องพึ่ง localStorage และลบไม่ได้
+const PRESET_LOCATIONS = [
+  {
+    id: 'khlongwan',
+    name: 'แปลงมะพร้าวคลองวาฬ',
+    detail: 'อ.สามร้อยยอด จ.ประจวบคีรีขันธ์',
+    lat: 11.7563340,
+    lon: 99.7684976,
+    coconut: true,
+    builtin: true,
+  },
+  {
+    id: 'raikao',
+    name: 'ต.ไร่เก่า',
+    detail: 'อ.สามร้อยยอด จ.ประจวบคีรีขันธ์',
+    lat: 12.2211831,
+    lon: 99.8770225,
+    coconut: true,
+    builtin: true,
+  },
+];
+const DEFAULT_LOCATION = PRESET_LOCATIONS[0];
+
+// ใช้เทียบว่าพิกัดซ้ำกับที่มีอยู่แล้วหรือไม่ (~10 ม.) กันรายการซ้ำจากคนละที่มา
+const coordKey = l => `${Number(l.lat).toFixed(4)},${Number(l.lon).toFixed(4)}`;
 
 const LS_LOCATIONS = 'khlongwan-weather.locations.v1';
 const LS_ACTIVE = 'khlongwan-weather.active.v1';
@@ -957,11 +973,15 @@ function normalizeLocation(l) {
 
 function loadLocations() {
   const saved = safeLS(() => JSON.parse(localStorage.getItem(LS_LOCATIONS) || '[]'), []);
+  const presetIds = new Set(PRESET_LOCATIONS.map(l => l.id));
+  const presetCoords = new Set(PRESET_LOCATIONS.map(coordKey));
   const custom = (Array.isArray(saved) ? saved : [])
     .filter(isValidLocation)
     .map(normalizeLocation)
-    .filter(l => l.id !== DEFAULT_LOCATION.id);
-  return [DEFAULT_LOCATION, ...custom];
+    // ตัดรายการที่ซ้ำกับ preset ทั้งโดย id และโดยพิกัด — ผู้ใช้อาจเคยวางพิกัดเดียวกัน
+    // ไว้เองก่อนที่มันจะกลายเป็น preset
+    .filter(l => !presetIds.has(l.id) && !presetCoords.has(coordKey(l)));
+  return [...PRESET_LOCATIONS, ...custom];
 }
 
 function persistLocations(list) {
@@ -992,7 +1012,8 @@ let ACTIVE = (() => {
   if (fromUrl) {
     // ลิงก์ที่แชร์มาชนะเสมอ ถ้ายังไม่มีในรายการก็เพิ่มและบันทึกทันที
     // เพื่อให้สิ่งที่เห็นใน dropdown ตรงกับสิ่งที่ถูกเก็บไว้จริง (เปิดครั้งหน้าก็ยังอยู่)
-    const existing = LOCATIONS.find(l => l.id === fromUrl.id);
+    // เทียบด้วยพิกัดด้วย ไม่งั้นลิงก์ที่ชี้มาที่ preset จะสร้างรายการซ้ำขึ้นมาอีกอัน
+    const existing = LOCATIONS.find(l => l.id === fromUrl.id || coordKey(l) === coordKey(fromUrl));
     if (existing) return existing;
     LOCATIONS = [...LOCATIONS, { ...fromUrl, detail: fromUrl.detail || 'เพิ่มจากลิงก์ที่แชร์' }];
     persistLocations(LOCATIONS);
@@ -2503,7 +2524,8 @@ function closeLocationForm() {
 
 function addLocation(loc) {
   const normalized = normalizeLocation(loc);
-  const existing = LOCATIONS.find(l => l.id === normalized.id);
+  // มีพิกัดนี้อยู่แล้ว (เช่นเป็น preset) → สลับไปที่เดิม ไม่สร้างรายการซ้ำ
+  const existing = LOCATIONS.find(l => l.id === normalized.id || coordKey(l) === coordKey(normalized));
   if (existing) {
     setActiveLocation(existing);
     closeLocationForm();
