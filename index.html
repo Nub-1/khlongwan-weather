@@ -498,16 +498,153 @@
       opacity: 0.6;
       font-style: italic;
     }
+
+    /* ===== Location picker ===== */
+    .location-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 14px;
+      padding-top: 14px;
+      border-top: 1px dashed #cbd5e0;
+      font-size: 0.9em;
+    }
+    .location-bar label { color: #4a5568; font-weight: 600; }
+    .location-bar select {
+      font-family: inherit;
+      font-size: 0.95em;
+      padding: 7px 10px;
+      border-radius: 8px;
+      border: 1px solid #cbd5e0;
+      background: #fff;
+      color: #1a202c;
+      max-width: 100%;
+      flex: 1 1 200px;
+      min-width: 0;
+    }
+    .loc-btn {
+      font-family: inherit;
+      font-size: 0.88em;
+      font-weight: 600;
+      padding: 7px 12px;
+      border: none;
+      border-radius: 8px;
+      background: #2a5298;
+      color: #fff;
+      cursor: pointer;
+      transition: background 0.2s;
+      white-space: nowrap;
+    }
+    .loc-btn:hover { background: #1e3c72; }
+    .loc-btn.ghost { background: #e2e8f0; color: #4a5568; }
+    .loc-btn.ghost:hover { background: #cbd5e0; }
+    .loc-btn:disabled { background: #cbd5e0; color: #94a3b8; cursor: not-allowed; }
+
+    .location-form {
+      margin-top: 12px;
+      padding: 16px;
+      background: #f7fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+    }
+    .loc-form-title { font-weight: 700; color: #1e3c72; margin-bottom: 8px; font-size: 0.95em; }
+    .loc-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 8px;
+    }
+    .loc-row input {
+      font-family: inherit;
+      font-size: 0.9em;
+      padding: 8px 10px;
+      border: 1px solid #cbd5e0;
+      border-radius: 8px;
+      flex: 1 1 150px;
+      min-width: 0;
+      color: #1a202c;
+      background: #fff;
+    }
+    .loc-row input:focus { outline: 2px solid #93c5fd; outline-offset: -1px; }
+    .loc-divider {
+      margin: 14px 0 8px;
+      padding-top: 12px;
+      border-top: 1px dashed #cbd5e0;
+      font-size: 0.82em;
+      color: #718096;
+    }
+    .loc-results { display: grid; gap: 6px; }
+    .loc-result {
+      text-align: left;
+      font-family: inherit;
+      font-size: 0.88em;
+      padding: 9px 12px;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      background: #fff;
+      cursor: pointer;
+      color: #1a202c;
+      transition: border-color 0.15s, background 0.15s;
+    }
+    .loc-result:hover { border-color: #2a5298; background: #f0f9ff; }
+    .loc-result small { color: #718096; display: block; margin-top: 2px; }
+    .loc-check {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.88em;
+      color: #4a5568;
+      margin: 10px 0;
+      cursor: pointer;
+    }
+    .loc-error { font-size: 0.85em; color: #dc2626; margin-top: 4px; }
+    .loc-note { font-size: 0.85em; color: #718096; }
   </style>
 </head>
 <body>
   <div class="container">
     <header>
-      <h1>🌴 แปลงมะพร้าวคลองวาฬ <span class="live-indicator"><span class="live-dot"></span>LIVE</span></h1>
+      <h1><span id="place-icon">🌴</span> <span id="place-name">แปลงมะพร้าวคลองวาฬ</span> <span class="live-indicator"><span class="live-dot"></span>LIVE</span></h1>
       <div class="meta">
-        <span>📍 11.7563°N, 99.7685°E</span>
+        <span id="place-coords">📍 กำลังโหลด...</span>
         <span id="generated-at">⏱️ กำลังโหลด...</span>
         <span>📊 Sources: Longdo Weather + Open-Meteo</span>
+      </div>
+
+      <div class="location-bar">
+        <label for="location-select">พื้นที่:</label>
+        <select id="location-select"></select>
+        <button id="location-add" class="loc-btn">➕ เพิ่มพื้นที่</button>
+        <button id="location-del" class="loc-btn ghost" title="ลบพื้นที่ที่เลือกอยู่">🗑️ ลบ</button>
+        <button id="location-share" class="loc-btn ghost" title="คัดลอกลิงก์ของพื้นที่นี้">🔗 คัดลอกลิงก์</button>
+      </div>
+
+      <div class="location-form" id="location-form" hidden>
+        <div class="loc-form-title">🔍 ค้นหาจากชื่อสถานที่</div>
+        <div class="loc-row">
+          <input id="loc-search" type="text" placeholder="เช่น สามร้อยยอด, หัวหิน, ปราณบุรี" autocomplete="off">
+          <button id="loc-search-btn" class="loc-btn">ค้นหา</button>
+        </div>
+        <div id="loc-results" class="loc-results"></div>
+
+        <div class="loc-divider">หรือกรอกพิกัดเอง (ได้จาก Google Maps: คลิกขวาที่จุด → คัดลอกพิกัด)</div>
+        <div class="loc-row">
+          <input id="loc-name" type="text" placeholder="ชื่อพื้นที่" maxlength="60">
+          <input id="loc-lat" type="text" inputmode="decimal" placeholder="ละติจูด (11.7563)">
+          <input id="loc-lon" type="text" inputmode="decimal" placeholder="ลองจิจูด (99.7685)">
+        </div>
+
+        <label class="loc-check">
+          <input type="checkbox" id="loc-coconut" checked>
+          เป็นแปลงมะพร้าว — แสดงการวิเคราะห์ความต้องการน้ำ
+        </label>
+
+        <div class="loc-row">
+          <button id="loc-save" class="loc-btn">บันทึกพื้นที่</button>
+          <button id="loc-cancel" class="loc-btn ghost">ยกเลิก</button>
+        </div>
+        <div id="loc-error" class="loc-error"></div>
       </div>
     </header>
 
@@ -609,8 +746,6 @@
 
 <script>
 // ============ Config ============
-const LAT = 11.7563340;
-const LON = 99.7684976;
 const LONGDO_KEY = 'fc3a538036000942bff242cb17c1ec99';
 const REFRESH_MS = 5 * 60 * 1000; // 5 นาที
 
@@ -674,14 +809,101 @@ function bkkDayLabel(dateStr, opts) {
   return new Date(bkkToEpoch(dateStr)).toLocaleDateString('th-TH', { timeZone: TZ, ...opts });
 }
 
+// ============ Locations ============
+const DEFAULT_LOCATION = {
+  id: 'khlongwan',
+  name: 'แปลงมะพร้าวคลองวาฬ',
+  detail: 'อ.สามร้อยยอด จ.ประจวบคีรีขันธ์',
+  lat: 11.7563340,
+  lon: 99.7684976,
+  coconut: true,
+  builtin: true,
+};
+
+const LS_LOCATIONS = 'khlongwan-weather.locations.v1';
+const LS_ACTIVE = 'khlongwan-weather.active.v1';
+
+// localStorage ใช้ไม่ได้ในโหมดส่วนตัวของบางเบราว์เซอร์ — ห้ามให้ทั้งหน้าพังเพราะเรื่องนี้
+function safeLS(fn, fallback = null) {
+  try { return fn(); } catch (e) { console.warn('localStorage ใช้ไม่ได้:', e.message); return fallback; }
+}
+
+function isValidLocation(l) {
+  return !!l
+    && typeof l.name === 'string' && l.name.trim().length > 0
+    && Number.isFinite(l.lat) && Math.abs(l.lat) <= 90
+    && Number.isFinite(l.lon) && Math.abs(l.lon) <= 180;
+}
+
+function normalizeLocation(l) {
+  return {
+    id: String(l.id || `${l.lat},${l.lon}`),
+    name: String(l.name).trim().slice(0, 60),
+    detail: l.detail ? String(l.detail).slice(0, 120) : '',
+    lat: Number(l.lat),
+    lon: Number(l.lon),
+    coconut: l.coconut !== false,
+    builtin: l.builtin === true,
+  };
+}
+
+function loadLocations() {
+  const saved = safeLS(() => JSON.parse(localStorage.getItem(LS_LOCATIONS) || '[]'), []);
+  const custom = (Array.isArray(saved) ? saved : [])
+    .filter(isValidLocation)
+    .map(normalizeLocation)
+    .filter(l => l.id !== DEFAULT_LOCATION.id);
+  return [DEFAULT_LOCATION, ...custom];
+}
+
+function persistLocations(list) {
+  safeLS(() => localStorage.setItem(
+    LS_LOCATIONS,
+    JSON.stringify(list.filter(l => !l.builtin))
+  ));
+}
+
+// ?lat=..&lon=..&name=..&coconut=0 — ใช้แชร์ลิงก์พื้นที่ให้คนอื่นเปิดดูได้
+function locationFromUrl() {
+  const p = new URLSearchParams(window.location.search);
+  const lat = parseFloat(p.get('lat'));
+  const lon = parseFloat(p.get('lon'));
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+  const loc = {
+    id: `${lat.toFixed(4)},${lon.toFixed(4)}`,
+    name: p.get('name') || `${lat.toFixed(4)}, ${lon.toFixed(4)}`,
+    lat, lon,
+    coconut: p.get('coconut') !== '0',
+  };
+  return isValidLocation(loc) ? normalizeLocation(loc) : null;
+}
+
+let LOCATIONS = loadLocations();
+let ACTIVE = (() => {
+  const fromUrl = locationFromUrl();
+  if (fromUrl) {
+    // ลิงก์ที่แชร์มาชนะเสมอ ถ้ายังไม่มีในรายการก็เพิ่มและบันทึกทันที
+    // เพื่อให้สิ่งที่เห็นใน dropdown ตรงกับสิ่งที่ถูกเก็บไว้จริง (เปิดครั้งหน้าก็ยังอยู่)
+    const existing = LOCATIONS.find(l => l.id === fromUrl.id);
+    if (existing) return existing;
+    LOCATIONS = [...LOCATIONS, { ...fromUrl, detail: fromUrl.detail || 'เพิ่มจากลิงก์ที่แชร์' }];
+    persistLocations(LOCATIONS);
+    return LOCATIONS[LOCATIONS.length - 1];
+  }
+  const savedId = safeLS(() => localStorage.getItem(LS_ACTIVE));
+  return LOCATIONS.find(l => l.id === savedId) || DEFAULT_LOCATION;
+})();
+
 // ============ State ============
 let chartObj = null;
 let refreshTimer = null;
+// กันผลลัพธ์ของ request เก่าเขียนทับหน้าจอ เมื่อผู้ใช้สลับพื้นที่ระหว่างที่ยังโหลดไม่เสร็จ
+let renderToken = 0;
 
 // ============ Longdo Weather API ============
 async function fetchLongdoRain() {
   try {
-    const url = `https://weather.longdo.com/rain/api/v1/location?key=${LONGDO_KEY}&lat=${LAT}&lon=${LON}`;
+    const url = `https://weather.longdo.com/rain/api/v1/location?key=${LONGDO_KEY}&lat=${ACTIVE.lat}&lon=${ACTIVE.lon}`;
     const r = await fetch(url);
     if (!r.ok) {
       console.warn(`Longdo rain HTTP ${r.status}`);
@@ -696,7 +918,7 @@ async function fetchLongdoRain() {
 
 async function fetchLongdoWind() {
   try {
-    const url = `https://weather.longdo.com/wind/api/v1/location?key=${LONGDO_KEY}&lat=${LAT}&lon=${LON}`;
+    const url = `https://weather.longdo.com/wind/api/v1/location?key=${LONGDO_KEY}&lat=${ACTIVE.lat}&lon=${ACTIVE.lon}`;
     const r = await fetch(url);
     if (!r.ok) {
       console.warn(`Longdo wind HTTP ${r.status}`);
@@ -717,7 +939,7 @@ async function fetchOpenMeteoArchive() {
   const end = addDays(today, -1);
   const start = addDays(today, -14); // ย้อนหลัง 14 วัน (สำหรับ chart)
   // era5_land = ~9 กม. (ERA5 ปกติ ~31 กม.) ละเอียดกว่ามากสำหรับจุดชายฝั่งที่มีเขาหินปูน
-  const url = `https://archive-api.open-meteo.com/v1/archive?latitude=${LAT}&longitude=${LON}&start_date=${start}&end_date=${end}&daily=precipitation_sum,precipitation_hours&hourly=precipitation&timezone=Asia%2FBangkok&models=era5_land&cell_selection=${CELL}`;
+  const url = `https://archive-api.open-meteo.com/v1/archive?latitude=${ACTIVE.lat}&longitude=${ACTIVE.lon}&start_date=${start}&end_date=${end}&daily=precipitation_sum,precipitation_hours&hourly=precipitation&timezone=Asia%2FBangkok&models=era5_land&cell_selection=${CELL}`;
   const r = await fetch(url);
   if (!r.ok) throw new Error(`Open-Meteo archive: HTTP ${r.status}`);
   return await r.json();
@@ -726,7 +948,7 @@ async function fetchOpenMeteoArchive() {
 async function fetchOpenMeteoForecast() {
   // past_days=7 → ได้ข้อมูลย้อนหลังจาก endpoint เดียวกับพยากรณ์ ใช้เติมช่วงที่ archive API
   // ยังไม่อัปเดต (archive มี lag ได้หลายวัน) เพื่อไม่ให้ panel ย้อนหลังกลายเป็นช่องว่าง
-  const url = `https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}&daily=precipitation_sum,precipitation_probability_max,temperature_2m_max,temperature_2m_min&current=temperature_2m,relative_humidity_2m,precipitation,rain,weather_code,wind_speed_10m&hourly=precipitation,precipitation_probability&timezone=Asia%2FBangkok&forecast_days=14&past_days=7&cell_selection=${CELL}`;
+  const url = `https://api.open-meteo.com/v1/forecast?latitude=${ACTIVE.lat}&longitude=${ACTIVE.lon}&daily=precipitation_sum,precipitation_probability_max,temperature_2m_max,temperature_2m_min&current=temperature_2m,relative_humidity_2m,precipitation,rain,weather_code,wind_speed_10m&hourly=precipitation,precipitation_probability&timezone=Asia%2FBangkok&forecast_days=14&past_days=7&cell_selection=${CELL}`;
   const r = await fetch(url);
   if (!r.ok) throw new Error(`Open-Meteo forecast: HTTP ${r.status}`);
   return await r.json();
@@ -735,7 +957,7 @@ async function fetchOpenMeteoForecast() {
 // เรียกหลายโมเดลในครั้งเดียว — Open-Meteo จะต่อท้ายชื่อโมเดลให้ทุกตัวแปร
 // เช่น precipitation_sum_ecmwf_ifs025
 async function fetchOpenMeteoModels() {
-  const url = `https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}&daily=precipitation_sum&timezone=Asia%2FBangkok&forecast_days=14&cell_selection=${CELL}&models=${COMPARE_MODELS.join(',')}`;
+  const url = `https://api.open-meteo.com/v1/forecast?latitude=${ACTIVE.lat}&longitude=${ACTIVE.lon}&daily=precipitation_sum&timezone=Asia%2FBangkok&forecast_days=14&cell_selection=${CELL}&models=${COMPARE_MODELS.join(',')}`;
   const r = await fetch(url);
   if (!r.ok) throw new Error(`Open-Meteo models: HTTP ${r.status}`);
   return await r.json();
@@ -745,10 +967,19 @@ async function fetchOpenMeteoModels() {
 // แทนตัวเลขเดี่ยวที่ให้ความรู้สึกแม่นเกินจริง
 // ขอเป็น hourly แล้วรวมเป็นรายวันตามเวลาไทยเอง (คุมขอบเขตวันได้ตรงกับส่วนอื่น)
 async function fetchOpenMeteoEnsemble() {
-  const url = `https://ensemble-api.open-meteo.com/v1/ensemble?latitude=${LAT}&longitude=${LON}&hourly=precipitation&timezone=Asia%2FBangkok&forecast_days=14&cell_selection=${CELL}&models=${ENSEMBLE_MODEL}`;
+  const url = `https://ensemble-api.open-meteo.com/v1/ensemble?latitude=${ACTIVE.lat}&longitude=${ACTIVE.lon}&hourly=precipitation&timezone=Asia%2FBangkok&forecast_days=14&cell_selection=${CELL}&models=${ENSEMBLE_MODEL}`;
   const r = await fetch(url);
   if (!r.ok) throw new Error(`Open-Meteo ensemble: HTTP ${r.status}`);
   return await r.json();
+}
+
+// ค้นหาพิกัดจากชื่อสถานที่ (ฟรี ไม่ต้องใช้ key รองรับภาษาไทย)
+async function geocodeSearch(query) {
+  const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=8&language=th&format=json`;
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(`ค้นหาไม่สำเร็จ (HTTP ${r.status})`);
+  const j = await r.json();
+  return Array.isArray(j.results) ? j.results : [];
 }
 
 // ============ Rain Events ============
@@ -1518,7 +1749,8 @@ function renderCoconutAnalysis(forecast, archive, ensembleDaily) {
 // ============ Render ============
 async function render() {
   const status = document.getElementById('refresh-status');
-  status.textContent = '🔄 กำลังโหลดข้อมูล...';
+  const token = ++renderToken;
+  status.textContent = `🔄 กำลังโหลดข้อมูล ${ACTIVE.name}...`;
 
   try {
     // allSettled ไม่ใช่ all — เดิมถ้า Open-Meteo ฝั่งใดฝั่งหนึ่งล้ม ทั้งหน้าจะค้างที่ "กำลังโหลด..."
@@ -1531,6 +1763,9 @@ async function render() {
       fetchOpenMeteoModels(),
       fetchOpenMeteoEnsemble(),
     ]);
+    // ผู้ใช้สลับพื้นที่ระหว่างที่ยังโหลดไม่เสร็จ → ผลลัพธ์ชุดนี้เป็นของพื้นที่เก่าแล้ว ทิ้งไป
+    if (token !== renderToken) return;
+
     const [rain, wind, archive, forecast, multi, ensemble] =
       results.map(r => (r.status === 'fulfilled' ? r.value : null));
 
@@ -1634,8 +1869,8 @@ async function render() {
     if (archive || forecast) {
       // Rain history (past 7 days)
       renderRainHistory(archive, forecast);
-      // Coconut water analysis
-      renderCoconutAnalysis(forecast, archive, ensembleDaily);
+      // Coconut water analysis — เฉพาะพื้นที่ที่ตั้งไว้ว่าเป็นแปลงมะพร้าว
+      if (ACTIVE.coconut) renderCoconutAnalysis(forecast, archive, ensembleDaily);
       // Chart
       renderChart(archive, forecast);
     } else {
@@ -1647,14 +1882,15 @@ async function render() {
     // (See https://weather.longdo.com/docs for paid tier access)
 
     if (failures.length) {
-      status.innerHTML = `<span style="color:#b45309">⚠️ บางแหล่งข้อมูลล้มเหลว: ${failures.join(', ')} — แสดงเท่าที่มี (${new Date().toLocaleTimeString('th-TH')})</span>`;
+      status.innerHTML = `<span style="color:#b45309">⚠️ บางแหล่งข้อมูลล้มเหลว: ${esc(failures.join(', '))} — แสดงเท่าที่มี (${new Date().toLocaleTimeString('th-TH')})</span>`;
     } else {
       status.textContent = '🟢 อัปเดตล่าสุด: ' + new Date().toLocaleTimeString('th-TH');
       console.log('✅ All data loaded at', new Date().toISOString());
     }
   } catch (e) {
+    if (token !== renderToken) return;
     console.error('❌ Render failed:', e);
-    status.innerHTML = '<span style="color:#dc2626">⚠️ โหลดข้อมูลไม่สำเร็จ: ' + e.message + ' (จะลองใหม่ใน 5 นาที)</span>';
+    status.innerHTML = '<span style="color:#dc2626">⚠️ โหลดข้อมูลไม่สำเร็จ: ' + esc(e.message) + ' (จะลองใหม่ใน 5 นาที)</span>';
   }
 }
 
@@ -1806,6 +2042,227 @@ function renderForecastGrid(forecast, ensembleDaily) {
   }
 }
 
+// ============ Location UI ============
+// ชื่อพื้นที่มาจากผู้ใช้และจาก geocoding API (ข้อมูลภายนอก) — ต้อง escape ก่อนใส่ innerHTML
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, c =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+const $loc = {
+  select: () => document.getElementById('location-select'),
+  form: () => document.getElementById('location-form'),
+  results: () => document.getElementById('loc-results'),
+  error: () => document.getElementById('loc-error'),
+  search: () => document.getElementById('loc-search'),
+  name: () => document.getElementById('loc-name'),
+  lat: () => document.getElementById('loc-lat'),
+  lon: () => document.getElementById('loc-lon'),
+  coconut: () => document.getElementById('loc-coconut'),
+};
+
+function renderLocationSelect() {
+  const sel = $loc.select();
+  sel.innerHTML = LOCATIONS.map(l =>
+    `<option value="${esc(l.id)}"${l.id === ACTIVE.id ? ' selected' : ''}>${esc(l.name)}${l.detail ? ' — ' + esc(l.detail) : ''}</option>`
+  ).join('');
+  // พื้นที่ตั้งต้นลบไม่ได้ (ต้องเหลืออย่างน้อยหนึ่งอัน)
+  document.getElementById('location-del').disabled = !!ACTIVE.builtin;
+}
+
+function renderLocationHeader() {
+  document.getElementById('place-icon').textContent = ACTIVE.coconut ? '🌴' : '📍';
+  document.getElementById('place-name').textContent = ACTIVE.name;
+  document.title = `${ACTIVE.coconut ? '🌴' : '📍'} Weather Dashboard - ${ACTIVE.name}`;
+  const ns = ACTIVE.lat >= 0 ? 'N' : 'S';
+  const ew = ACTIVE.lon >= 0 ? 'E' : 'W';
+  document.getElementById('place-coords').textContent =
+    `📍 ${Math.abs(ACTIVE.lat).toFixed(4)}°${ns}, ${Math.abs(ACTIVE.lon).toFixed(4)}°${ew}` +
+    (ACTIVE.detail ? ` · ${ACTIVE.detail}` : '');
+
+  // panel วิเคราะห์มะพร้าวไม่เกี่ยวกับพื้นที่ที่ไม่ใช่แปลง — ซ่อนไปเลย
+  const coconutPanel = document.getElementById('coconut-analysis').closest('.panel');
+  if (coconutPanel) coconutPanel.hidden = !ACTIVE.coconut;
+}
+
+// เก็บพื้นที่ที่เลือกไว้ใน URL ด้วย เพื่อให้ refresh แล้วยังอยู่ที่เดิม และแชร์ลิงก์ได้
+function syncUrl() {
+  const p = new URLSearchParams();
+  p.set('lat', String(ACTIVE.lat));
+  p.set('lon', String(ACTIVE.lon));
+  p.set('name', ACTIVE.name);
+  if (!ACTIVE.coconut) p.set('coconut', '0');
+  try {
+    history.replaceState(null, '', `${window.location.pathname}?${p}`);
+  } catch (e) {
+    // file:// ไม่รองรับ replaceState — ไม่ใช่เรื่องคอขาดบาดตาย
+  }
+}
+
+function setActiveLocation(loc) {
+  ACTIVE = loc;
+  safeLS(() => localStorage.setItem(LS_ACTIVE, loc.id));
+  renderLocationSelect();
+  renderLocationHeader();
+  syncUrl();
+  resetPanelsToLoading();
+  render();
+}
+
+// ล้างค่าของพื้นที่เดิมออกก่อน ไม่ให้ค้างบนจอระหว่างโหลดพื้นที่ใหม่
+function resetPanelsToLoading() {
+  for (const id of ['rain-events', 'rain-history', 'coconut-analysis', 'confidence', 'forecast-grid']) {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = '<div class="status-loading">กำลังโหลด...</div>';
+  }
+  for (const id of ['rain-now', 'wind-now', 'temp-now', 'rain-week']) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = '-';
+  }
+  for (const [id, txt] of [['rain-desc', 'กำลังโหลด...'], ['wind-desc', 'กำลังโหลด...'], ['temp-desc', 'กำลังโหลด...']]) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = txt;
+  }
+  if (chartObj) { chartObj.destroy(); chartObj = null; }
+}
+
+function showLocError(msg) {
+  $loc.error().textContent = msg || '';
+}
+
+function openLocationForm() {
+  $loc.form().hidden = false;
+  $loc.results().innerHTML = '';
+  showLocError('');
+  $loc.search().value = '';
+  $loc.name().value = '';
+  $loc.lat().value = '';
+  $loc.lon().value = '';
+  $loc.coconut().checked = true;
+  $loc.search().focus();
+}
+
+function closeLocationForm() {
+  $loc.form().hidden = true;
+  showLocError('');
+}
+
+function addLocation(loc) {
+  const normalized = normalizeLocation(loc);
+  const existing = LOCATIONS.find(l => l.id === normalized.id);
+  if (existing) {
+    setActiveLocation(existing);
+    closeLocationForm();
+    return;
+  }
+  LOCATIONS = [...LOCATIONS, normalized];
+  persistLocations(LOCATIONS);
+  closeLocationForm();
+  setActiveLocation(normalized);
+}
+
+async function doGeocodeSearch() {
+  const q = $loc.search().value.trim();
+  if (!q) { showLocError('พิมพ์ชื่อสถานที่ก่อน'); return; }
+  const btn = document.getElementById('loc-search-btn');
+  btn.disabled = true;
+  btn.textContent = 'กำลังค้นหา...';
+  showLocError('');
+  $loc.results().innerHTML = '';
+  try {
+    const results = await geocodeSearch(q);
+    if (!results.length) {
+      showLocError('ไม่พบสถานที่นี้ — ลองคำอื่น หรือกรอกพิกัดเองด้านล่าง');
+      return;
+    }
+    $loc.results().innerHTML = results.map((r, i) => {
+      const detail = [r.admin2, r.admin1, r.country].filter(Boolean).join(', ');
+      return `<button type="button" class="loc-result" data-idx="${i}">
+        <b>${esc(r.name)}</b>
+        <small>${esc(detail)} · ${r.latitude.toFixed(4)}, ${r.longitude.toFixed(4)}</small>
+      </button>`;
+    }).join('');
+    $loc.results().querySelectorAll('.loc-result').forEach(el => {
+      el.onclick = () => {
+        const r = results[Number(el.dataset.idx)];
+        addLocation({
+          id: `${r.latitude.toFixed(4)},${r.longitude.toFixed(4)}`,
+          name: r.name,
+          detail: [r.admin2, r.admin1].filter(Boolean).join(', '),
+          lat: r.latitude,
+          lon: r.longitude,
+          coconut: $loc.coconut().checked,
+        });
+      };
+    });
+  } catch (e) {
+    showLocError(`ค้นหาไม่สำเร็จ: ${e.message} — กรอกพิกัดเองด้านล่างได้`);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'ค้นหา';
+  }
+}
+
+function saveManualLocation() {
+  const name = $loc.name().value.trim();
+  const lat = parseFloat($loc.lat().value.trim());
+  const lon = parseFloat($loc.lon().value.trim());
+
+  if (!name) { showLocError('ใส่ชื่อพื้นที่ด้วย'); return; }
+  if (!Number.isFinite(lat) || Math.abs(lat) > 90) { showLocError('ละติจูดต้องเป็นตัวเลขระหว่าง -90 ถึง 90'); return; }
+  if (!Number.isFinite(lon) || Math.abs(lon) > 180) { showLocError('ลองจิจูดต้องเป็นตัวเลขระหว่าง -180 ถึง 180'); return; }
+
+  addLocation({
+    id: `${lat.toFixed(4)},${lon.toFixed(4)}`,
+    name, lat, lon,
+    coconut: $loc.coconut().checked,
+  });
+}
+
+function deleteActiveLocation() {
+  if (ACTIVE.builtin) return;
+  if (!window.confirm(`ลบพื้นที่ "${ACTIVE.name}" ออกจากรายการ?`)) return;
+  LOCATIONS = LOCATIONS.filter(l => l.id !== ACTIVE.id);
+  persistLocations(LOCATIONS);
+  setActiveLocation(LOCATIONS[0] || DEFAULT_LOCATION);
+}
+
+async function shareActiveLocation() {
+  syncUrl();
+  const url = window.location.href;
+  const btn = document.getElementById('location-share');
+  const original = btn.textContent;
+  try {
+    await navigator.clipboard.writeText(url);
+    btn.textContent = '✅ คัดลอกแล้ว';
+  } catch (e) {
+    // clipboard API ต้องการ https + user gesture — ถ้าไม่ได้ก็ให้ผู้ใช้คัดลอกจากแถบ URL เอง
+    btn.textContent = '⚠️ คัดลอกไม่ได้ — ใช้ URL บนแถบที่อยู่';
+  }
+  setTimeout(() => { btn.textContent = original; }, 2500);
+}
+
+function initLocationUI() {
+  renderLocationSelect();
+  renderLocationHeader();
+  syncUrl();
+
+  $loc.select().onchange = e => {
+    const loc = LOCATIONS.find(l => l.id === e.target.value);
+    if (loc) setActiveLocation(loc);
+  };
+  document.getElementById('location-add').onclick = openLocationForm;
+  document.getElementById('location-del').onclick = deleteActiveLocation;
+  document.getElementById('location-share').onclick = shareActiveLocation;
+  document.getElementById('loc-search-btn').onclick = doGeocodeSearch;
+  document.getElementById('loc-save').onclick = saveManualLocation;
+  document.getElementById('loc-cancel').onclick = closeLocationForm;
+  $loc.search().onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); doGeocodeSearch(); } };
+  [$loc.name(), $loc.lat(), $loc.lon()].forEach(el => {
+    el.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); saveManualLocation(); } };
+  });
+}
+
 // ============ Boot ============
 document.getElementById('refresh-now').onclick = () => {
   document.getElementById('refresh-now').disabled = true;
@@ -1814,6 +2271,7 @@ document.getElementById('refresh-now').onclick = () => {
   });
 };
 
+initLocationUI();
 render();
 refreshTimer = setInterval(() => {
   console.log('⏰ Auto-refresh at', new Date().toISOString());

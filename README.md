@@ -1,8 +1,26 @@
 # 🌴 Weather Dashboard - แปลงมะพร้าวคลองวาฬ
 
-Live weather dashboard สำหรับแปลงมะพร้าวคลองวาฬ (อ.สามร้อยยอด จ.ประจวบคีรีขันธ์)
+Live weather dashboard เริ่มต้นที่แปลงมะพร้าวคลองวาฬ (อ.สามร้อยยอด จ.ประจวบคีรีขันธ์)
+และ**เพิ่มพื้นที่อื่นได้เอง**
 
 **🌐 Live:** https://nub-1.github.io/khlongwan-weather/
+
+## 📍 เพิ่ม / สลับพื้นที่
+
+ที่แถบบนสุดมี dropdown เลือกพื้นที่ + ปุ่ม **➕ เพิ่มพื้นที่** ซึ่งเพิ่มได้ 2 วิธี:
+
+1. **ค้นหาจากชื่อ** — พิมพ์ "ปราณบุรี", "หัวหิน", "ทับสะแก" แล้วเลือกจากผลลัพธ์
+   (ใช้ Open-Meteo Geocoding ฟรี รองรับภาษาไทย)
+2. **กรอกพิกัดเอง** — สำหรับแปลงที่ไม่มีชื่อบนแผนที่
+   เอาพิกัดจาก Google Maps ได้โดยคลิกขวาที่จุด → คัดลอกพิกัด
+
+ตอนเพิ่มมีช่องติ๊ก **"เป็นแปลงมะพร้าว"** — ถ้าไม่ติ๊ก panel วิเคราะห์ความต้องการน้ำ
+จะถูกซ่อน (เหมาะกับพื้นที่ที่แค่อยากดูฝนเฉย ๆ)
+
+- พื้นที่ที่เพิ่มถูกเก็บใน **localStorage** ของเบราว์เซอร์ (ไม่ได้ส่งไปไหน)
+- ปุ่ม **🔗 คัดลอกลิงก์** ให้ URL ที่เปิดตรงมาที่พื้นที่นั้นได้เลย เช่น
+  `?lat=12.3892&lon=99.9042&name=ปราณบุรี` — ส่งให้คนอื่นเปิดดูได้โดยไม่ต้องตั้งค่าใหม่
+- แปลงมะพร้าวคลองวาฬเป็นพื้นที่ตั้งต้น ลบไม่ได้
 
 ## ✨ Features
 
@@ -52,9 +70,10 @@ Live weather dashboard สำหรับแปลงมะพร้าวคล
 ## 🛠️ Tech Stack
 
 - **Frontend:** HTML + Vanilla JS + Chart.js (CDN)
+- **Storage:** localStorage (รายการพื้นที่) — ไม่มี backend ไม่มีการส่งข้อมูลออก
 - **Data sources:**
   - [Longdo Weather API](https://weather.longdo.com/) — เรดาร์ฝน + ลม (ต้องใช้ API key)
-  - [Open-Meteo](https://open-meteo.com/) — forecast / archive / **ensemble** / **multi-model** (ฟรี ไม่ต้องใช้ key)
+  - [Open-Meteo](https://open-meteo.com/) — forecast / archive / **ensemble** / **multi-model** / **geocoding** (ฟรี ไม่ต้องใช้ key)
 - **Hosting:** GitHub Pages (static, no backend needed)
 
 ## 🔑 API Key
@@ -81,13 +100,16 @@ python3 -m http.server 8000
 # แล้วเปิด http://localhost:8000
 ```
 
-## 📍 Location
+## 📍 พื้นที่ตั้งต้น
 
 ```
 Latitude:  11.7563340
 Longitude: 99.7684976
 Place:     แปลงมะพร้าวคลองวาฬ, อ.สามร้อยยอด, จ.ประจวบคีรีขันธ์
 ```
+
+แก้ค่าเริ่มต้นได้ที่ `DEFAULT_LOCATION` ใน `index.html` — พื้นที่อื่นเพิ่มผ่านหน้าเว็บได้เลย
+ไม่ต้องแก้โค้ด
 
 ## 🧑‍💻 Maintainer
 
