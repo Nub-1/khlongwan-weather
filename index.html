@@ -247,6 +247,104 @@
       animation: pulse 2s infinite;
     }
 
+    /* ===== Forecast Confidence (ensemble + multi-model) ===== */
+    .conf-day {
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 14px 16px;
+      margin-bottom: 10px;
+      background: #fff;
+    }
+    .conf-day.today {
+      border-color: #93c5fd;
+      background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+    }
+    .conf-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 10px;
+    }
+    .conf-head h3 { color: #1e3c72; font-size: 1em; margin: 0; }
+    .conf-badge {
+      color: #fff;
+      padding: 3px 10px;
+      border-radius: 12px;
+      font-size: 0.75em;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .conf-body {
+      display: grid;
+      grid-template-columns: 1fr 170px;
+      gap: 16px;
+      align-items: center;
+    }
+    @media (max-width: 640px) {
+      .conf-body { grid-template-columns: 1fr; gap: 10px; }
+    }
+    .conf-prob-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 5px;
+      font-size: 0.82em;
+    }
+    .conf-prob-label { width: 120px; color: #4a5568; flex-shrink: 0; }
+    .conf-prob-label em { color: #a0aec0; font-style: normal; font-size: 0.88em; }
+    .conf-bar {
+      flex: 1;
+      height: 8px;
+      background: #edf2f7;
+      border-radius: 4px;
+      overflow: hidden;
+      min-width: 60px;
+    }
+    .conf-bar-fill { height: 100%; border-radius: 4px; transition: width 0.3s; }
+    .conf-prob-val { width: 38px; text-align: right; font-weight: 700; flex-shrink: 0; }
+    .conf-range {
+      background: #f7fafc;
+      border-radius: 10px;
+      padding: 10px 12px;
+      text-align: center;
+      border: 1px dashed #cbd5e0;
+    }
+    .conf-range-label { font-size: 0.72em; color: #718096; text-transform: uppercase; letter-spacing: 0.3px; }
+    .conf-range-val { font-size: 1.25em; font-weight: 700; color: #1e3c72; margin: 2px 0; }
+    .conf-range-val span { font-size: 0.6em; font-weight: 400; color: #4a5568; }
+    .conf-range-sub { font-size: 0.72em; color: #718096; }
+    .conf-nodata { font-size: 0.82em; color: #a0aec0; font-style: italic; }
+    .conf-models {
+      margin-top: 10px;
+      padding-top: 8px;
+      border-top: 1px dashed #e2e8f0;
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .conf-model {
+      font-size: 0.72em;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 6px;
+      cursor: help;
+    }
+    .conf-model.yes { background: #dcfce7; color: #15803d; }
+    .conf-model.no  { background: #f1f5f9; color: #94a3b8; }
+    .conf-outlook {
+      margin-top: 14px;
+      padding: 14px 16px;
+      background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%);
+      border-radius: 12px;
+      border-left: 4px solid #8b5cf6;
+    }
+    .conf-outlook-title { font-weight: 700; color: #5b21b6; margin-bottom: 6px; font-size: 0.95em; }
+    .conf-outlook-body { font-size: 0.9em; color: #1a202c; }
+    .conf-outlook-range { color: #6b7280; font-size: 0.9em; }
+    .conf-outlook-warn { margin-top: 8px; font-size: 0.8em; color: #6d28d9; line-height: 1.5; }
+
     /* ===== Coconut Water Analysis ===== */
     .coconut-grid {
       display: grid;
@@ -361,16 +459,21 @@
       margin-bottom: 4px;
     }
     .forecast-day .icon { font-size: 1.8em; margin: 4px 0; }
-    .forecast-day .rain {
+    .forecast-day .prob-main {
       font-weight: 700;
       color: #2a5298;
-      font-size: 1.05em;
+      font-size: 1.15em;
     }
-    .forecast-day .prob {
+    .forecast-day .rain-range {
       font-size: 0.75em;
       color: #4a5568;
       margin-top: 4px;
     }
+    .forecast-day.low-conf {
+      opacity: 0.62;
+      border-style: dashed;
+    }
+    .forecast-day.low-conf .rain-range { font-style: italic; color: #94a3b8; }
     .forecast-day .prob-bar {
       background: #e2e8f0;
       height: 4px;
@@ -395,16 +498,245 @@
       opacity: 0.6;
       font-style: italic;
     }
+
+    /* ===== Rain calendar ===== */
+    .cal-nav {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      margin-bottom: 12px;
+    }
+    .cal-title { font-weight: 700; color: #1e3c72; font-size: 1.05em; min-width: 170px; text-align: center; }
+    .cal-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 5px;
+    }
+    .cal-head {
+      text-align: center;
+      font-size: 0.78em;
+      font-weight: 700;
+      color: #718096;
+      padding-bottom: 4px;
+    }
+    .cal-cell {
+      border: 1px solid transparent;
+      border-radius: 8px;
+      padding: 6px 3px 7px;
+      text-align: center;
+      min-height: 58px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 1px;
+      transition: transform 0.12s;
+    }
+    .cal-cell:not(.empty):hover { transform: scale(1.06); }
+    .cal-cell.empty { background: transparent !important; border-color: transparent !important; min-height: 0; }
+    .cal-cell.forecast { border-style: dashed; border-width: 2px; }
+    .cal-cell.today { outline: 3px solid #f59e0b; outline-offset: -1px; }
+    .cal-date { font-size: 0.72em; opacity: 0.85; line-height: 1; }
+    .cal-mm { font-size: 1em; font-weight: 700; line-height: 1.15; }
+    .cal-prob { font-size: 0.62em; opacity: 0.8; line-height: 1; }
+    @media (max-width: 560px) {
+      .cal-cell { min-height: 48px; padding: 4px 1px 5px; }
+      .cal-mm { font-size: 0.85em; }
+      .cal-date { font-size: 0.65em; }
+      .cal-prob { display: none; }
+      .cal-grid { gap: 3px; }
+    }
+    .cal-summary {
+      margin-top: 14px;
+      padding: 12px 16px;
+      background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%);
+      border-radius: 12px;
+      display: flex;
+      justify-content: space-around;
+      flex-wrap: wrap;
+      gap: 10px;
+      font-size: 0.9em;
+      color: #1e3c72;
+      font-weight: 600;
+    }
+    .cal-legend {
+      margin-top: 12px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      font-size: 0.78em;
+      color: #718096;
+    }
+    .cal-legend-item { display: inline-flex; align-items: center; gap: 4px; }
+    .cal-legend-item i {
+      width: 16px;
+      height: 16px;
+      border-radius: 4px;
+      border: 1px solid;
+      display: inline-block;
+    }
+
+    /* ===== Location picker ===== */
+    .location-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 14px;
+      padding-top: 14px;
+      border-top: 1px dashed #cbd5e0;
+      font-size: 0.9em;
+    }
+    .location-bar label { color: #4a5568; font-weight: 600; }
+    .location-bar select {
+      font-family: inherit;
+      font-size: 0.95em;
+      padding: 7px 10px;
+      border-radius: 8px;
+      border: 1px solid #cbd5e0;
+      background: #fff;
+      color: #1a202c;
+      max-width: 100%;
+      flex: 1 1 200px;
+      min-width: 0;
+    }
+    .loc-btn {
+      font-family: inherit;
+      font-size: 0.88em;
+      font-weight: 600;
+      padding: 7px 12px;
+      border: none;
+      border-radius: 8px;
+      background: #2a5298;
+      color: #fff;
+      cursor: pointer;
+      transition: background 0.2s;
+      white-space: nowrap;
+    }
+    .loc-btn:hover { background: #1e3c72; }
+    .loc-btn.ghost { background: #e2e8f0; color: #4a5568; }
+    .loc-btn.ghost:hover { background: #cbd5e0; }
+    .loc-btn:disabled { background: #cbd5e0; color: #94a3b8; cursor: not-allowed; }
+
+    .location-form {
+      margin-top: 12px;
+      padding: 16px;
+      background: #f7fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+    }
+    .loc-form-title { font-weight: 700; color: #1e3c72; margin-bottom: 8px; font-size: 0.95em; }
+    .loc-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 8px;
+    }
+    .loc-row input {
+      font-family: inherit;
+      font-size: 0.9em;
+      padding: 8px 10px;
+      border: 1px solid #cbd5e0;
+      border-radius: 8px;
+      flex: 1 1 150px;
+      min-width: 0;
+      color: #1a202c;
+      background: #fff;
+    }
+    .loc-row input:focus { outline: 2px solid #93c5fd; outline-offset: -1px; }
+    .loc-divider {
+      margin: 14px 0 8px;
+      padding-top: 12px;
+      border-top: 1px dashed #cbd5e0;
+      font-size: 0.82em;
+      color: #718096;
+    }
+    .loc-results { display: grid; gap: 6px; }
+    .loc-result {
+      text-align: left;
+      font-family: inherit;
+      font-size: 0.88em;
+      padding: 9px 12px;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      background: #fff;
+      cursor: pointer;
+      color: #1a202c;
+      transition: border-color 0.15s, background 0.15s;
+    }
+    .loc-result:hover { border-color: #2a5298; background: #f0f9ff; }
+    .loc-result small { color: #718096; display: block; margin-top: 2px; }
+    .loc-check {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.88em;
+      color: #4a5568;
+      margin: 10px 0;
+      cursor: pointer;
+    }
+    .loc-error { font-size: 0.85em; color: #dc2626; margin-top: 4px; }
+    .loc-hint { font-size: 0.78em; color: #718096; margin: -2px 0 6px; line-height: 1.7; }
+    .loc-hint code {
+      background: #edf2f7;
+      padding: 1px 5px;
+      border-radius: 4px;
+      font-size: 0.95em;
+      color: #2d3748;
+    }
+    .loc-preview { font-size: 0.85em; margin-bottom: 4px; min-height: 1.2em; }
+    .loc-preview.ok { color: #15803d; font-weight: 600; }
+    .loc-preview.bad { color: #dc2626; }
   </style>
 </head>
 <body>
   <div class="container">
     <header>
-      <h1>🌴 แปลงมะพร้าวคลองวาฬ <span class="live-indicator"><span class="live-dot"></span>LIVE</span></h1>
+      <h1><span id="place-icon">🌴</span> <span id="place-name">แปลงมะพร้าวคลองวาฬ</span> <span class="live-indicator"><span class="live-dot"></span>LIVE</span></h1>
       <div class="meta">
-        <span>📍 11.7563°N, 99.7685°E</span>
+        <span id="place-coords">📍 กำลังโหลด...</span>
         <span id="generated-at">⏱️ กำลังโหลด...</span>
         <span>📊 Sources: Longdo Weather + Open-Meteo</span>
+      </div>
+
+      <div class="location-bar">
+        <label for="location-select">พื้นที่:</label>
+        <select id="location-select"></select>
+        <button id="location-add" class="loc-btn">➕ เพิ่มพื้นที่</button>
+        <button id="location-del" class="loc-btn ghost" title="ลบพื้นที่ที่เลือกอยู่">🗑️ ลบ</button>
+        <button id="location-share" class="loc-btn ghost" title="คัดลอกลิงก์ของพื้นที่นี้">🔗 คัดลอกลิงก์</button>
+      </div>
+
+      <div class="location-form" id="location-form" hidden>
+        <div class="loc-form-title">🔍 ค้นหาจากชื่อสถานที่</div>
+        <div class="loc-row">
+          <input id="loc-search" type="text" placeholder="เช่น สามร้อยยอด, หัวหิน, ปราณบุรี" autocomplete="off">
+          <button id="loc-search-btn" class="loc-btn">ค้นหา</button>
+        </div>
+        <div id="loc-results" class="loc-results"></div>
+
+        <div class="loc-divider">หรือวางพิกัดเอง (Google Maps: คลิกขวาที่จุด → คลิกพิกัดเพื่อคัดลอก แล้ววางที่นี่)</div>
+        <div class="loc-row">
+          <input id="loc-name" type="text" placeholder="ชื่อพื้นที่" maxlength="60">
+          <input id="loc-coord" type="text" placeholder="12.2211831, 99.8770225" autocomplete="off" spellcheck="false">
+        </div>
+        <div class="loc-hint">
+          รองรับ: <code>12.2211831, 99.8770225</code> · <code>12.2211831:99.8770225</code> ·
+          <code>12.2211831 99.8770225</code> · <code>12°13'16.3"N 99°52'37.3"E</code>
+        </div>
+        <div id="loc-coord-preview" class="loc-preview"></div>
+
+        <label class="loc-check">
+          <input type="checkbox" id="loc-coconut" checked>
+          เป็นแปลงมะพร้าว — แสดงการวิเคราะห์ความต้องการน้ำ
+        </label>
+
+        <div class="loc-row">
+          <button id="loc-save" class="loc-btn">บันทึกพื้นที่</button>
+          <button id="loc-cancel" class="loc-btn ghost">ยกเลิก</button>
+        </div>
+        <div id="loc-error" class="loc-error"></div>
       </div>
     </header>
 
@@ -451,6 +783,17 @@
     </div>
 
     <div class="panel">
+      <h2>🎯 ความมั่นใจของพยากรณ์ (7 วันข้างหน้า)</h2>
+      <p style="color:#4a5568;font-size:0.9em;margin-bottom:12px;">
+        📊 แทนที่จะบอกตัวเลขเดียว ใช้ <b>ensemble</b> (โมเดลหลายสิบชุด) บอกความน่าจะเป็นและช่วงปริมาณ
+        + เทียบ <b>4 โมเดล</b> ว่าเห็นตรงกันแค่ไหน — ยิ่งตรงกันยิ่งเชื่อได้
+      </p>
+      <div id="confidence">
+        <div class="status-loading">กำลังโหลด...</div>
+      </div>
+    </div>
+
+    <div class="panel">
       <h2>📜 ประวัติฝนตกย้อนหลัง (7 วันที่ผ่านมา)</h2>
       <p style="color:#4a5568;font-size:0.9em;margin-bottom:12px;">
         ☔ บันทึกการตกของฝนจริง (≥ 0.1 มม.) จาก Open-Meteo Archive — ใช้ดูย้อนหลังว่าฝนตกช่วงไหน
@@ -471,6 +814,22 @@
     </div>
 
     <div class="panel">
+      <h2>🗓️ ปฏิทินปริมาณฝน</h2>
+      <p style="color:#4a5568;font-size:0.9em;margin-bottom:12px;">
+        ปริมาณฝนรายวัน (มม.) บนปฏิทิน — ช่อง<b>ทึบ</b>คือฝนที่ตกจริงแล้ว
+        ช่อง<b>เส้นประ</b>คือพยากรณ์ (ใช้ค่ากลางของ ensemble)
+      </p>
+      <div class="cal-nav">
+        <button id="cal-prev" class="loc-btn ghost" title="เดือนก่อนหน้า">‹</button>
+        <span id="cal-title" class="cal-title">—</span>
+        <button id="cal-next" class="loc-btn ghost" title="เดือนถัดไป">›</button>
+      </div>
+      <div id="rain-calendar">
+        <div class="status-loading">กำลังโหลด...</div>
+      </div>
+    </div>
+
+    <div class="panel">
       <h2>📊 กราฟฝน (ย้อนหลัง 14 วัน + พยากรณ์ 14 วัน)</h2>
       <div class="chart-container">
         <canvas id="rainChart"></canvas>
@@ -479,6 +838,10 @@
 
     <div class="panel">
       <h2>📅 พยากรณ์ 14 วันข้างหน้า</h2>
+      <p style="color:#4a5568;font-size:0.9em;margin-bottom:12px;">
+        ตัวเลขใหญ่คือ <b>โอกาสเกิดฝน</b> (จาก ensemble) ตามด้วยช่วงปริมาณที่เป็นไปได้ —
+        การ์ดที่จางและเป็นเส้นประคือช่วงเกิน 7 วัน ซึ่งความแม่นต่ำ ใช้ดูแนวโน้มเท่านั้น
+      </p>
       <div class="forecast-grid" id="forecast-grid">
         <div class="status-loading">กำลังโหลด...</div>
       </div>
@@ -491,37 +854,185 @@
 
 <script>
 // ============ Config ============
-const LAT = 11.7563340;
-const LON = 99.7684976;
 const LONGDO_KEY = 'fc3a538036000942bff242cb17c1ec99';
-const Z = 13; // maxzoom
-const CROP_HALF = 30; // pixels รอบศูนย์กลาง (~565 m radius)
 const REFRESH_MS = 5 * 60 * 1000; // 5 นาที
 
-// ============ Lat/Lon → Tile ============
-function latlonToTile(lat, lon, zoom) {
-  const n = 2 ** zoom;
-  const x = Math.floor((lon + 180.0) / 360.0 * n);
-  const latRad = lat * Math.PI / 180;
-  const y = Math.floor((1.0 - Math.asinh(Math.tan(latRad)) / Math.PI) / 2.0 * n);
-  return [x, y];
+// แปลงอยู่ติดชายฝั่งอ่าวไทย — บังคับให้โมเดลเลือก grid cell บนบก ไม่งั้นอาจได้ cell
+// ที่เป็นทะเลซึ่งมีพฤติกรรมฝนต่างจากบนบกมาก
+const CELL = 'land';
+
+// โมเดลที่เอามาเทียบกัน — ความเห็นตรงกันของหลายโมเดลบอก "ความมั่นใจ" ได้ดีกว่า
+// ตัวเลขจากโมเดลเดียว (JMA ปรับจูนมาสำหรับเอเชียตะวันออก/อาคเนย์)
+const COMPARE_MODELS = ['ecmwf_ifs025', 'gfs_seamless', 'icon_seamless', 'jma_seamless'];
+const MODEL_LABEL = {
+  ecmwf_ifs025: 'ECMWF',
+  gfs_seamless: 'GFS',
+  icon_seamless: 'ICON',
+  jma_seamless: 'JMA',
+};
+
+// ระบบ ensemble ที่ใช้คำนวณความน่าจะเป็น (GEFS ~31 สมาชิก ยาวถึง ~16 วัน)
+const ENSEMBLE_MODEL = 'gfs_seamless';
+
+// เกณฑ์ปริมาณฝนรายวันที่ใช้รายงานความน่าจะเป็น (มม.)
+const RAIN_THRESHOLDS = [0.1, 5, 20];
+
+// พยากรณ์รายวันของจุดเดียวในเขตร้อนแทบไม่มี skill เกินราว 7 วัน
+// เกินจากนี้ยุบเป็นแนวโน้มรายสัปดาห์ ไม่แสดงเป็นตัวเลขรายวัน
+const DETAILED_FORECAST_DAYS = 7;
+
+// ============ Timezone (Asia/Bangkok) ============
+// Open-Meteo ถูกเรียกด้วย timezone=Asia/Bangkok → คืนค่าเวลาเป็น "wall clock" ของไทย
+// ("2026-08-16T14:00") ที่ไม่มี offset ต่อท้าย ถ้าโยนเข้า new Date() ตรง ๆ JS จะตีความ
+// เป็นเวลาท้องถิ่นของ "เครื่องผู้ใช้" ทำให้ผู้ที่เปิดจากนอกไทยเห็นเวลา/วันที่เพี้ยน
+// (และ "YYYY-MM-DD" เปล่า ๆ จะถูกตีความเป็น UTC ซึ่งคนละแบบกันอีก)
+// helper ชุดนี้จึงแปลงเองทั้งหมด ให้ผลลัพธ์เท่ากันทุก timezone
+const TZ = 'Asia/Bangkok';
+const TZ_OFFSET_MS = 7 * 3600000; // ไทยเป็น UTC+7 คงที่ ไม่มี DST
+
+// "YYYY-MM-DD" หรือ "YYYY-MM-DDTHH:mm" (เวลาไทย) → epoch ms จริง
+function bkkToEpoch(s) {
+  const [datePart, timePart = '00:00'] = String(s).split('T');
+  const [y, m, d] = datePart.split('-').map(Number);
+  const [hh, mm] = timePart.split(':').map(Number);
+  return Date.UTC(y, m - 1, d, hh, mm) - TZ_OFFSET_MS;
 }
 
-function tileToLatLon(x, y, zoom) {
-  const n = 2 ** zoom;
-  const lon = x / n * 360 - 180;
-  const lat = Math.atan(Math.sinh(Math.PI * (1 - 2 * y / n))) * 180 / Math.PI;
-  return [lat, lon];
+// epoch ms → "YYYY-MM-DD" ตามวันที่ในไทย (ไม่ใช่วันที่ของเครื่องผู้ใช้)
+function bkkDateStr(epochMs = Date.now()) {
+  return new Date(epochMs + TZ_OFFSET_MS).toISOString().slice(0, 10);
 }
+
+// epoch ms → "HH:MM" ตามเวลาไทย
+function bkkHour(epochMs) {
+  const d = new Date(epochMs + TZ_OFFSET_MS);
+  return `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`;
+}
+
+function addDays(dateStr, n) {
+  return bkkDateStr(bkkToEpoch(dateStr) + n * 86400000);
+}
+
+function bkkDayLabel(dateStr, opts) {
+  return new Date(bkkToEpoch(dateStr)).toLocaleDateString('th-TH', { timeZone: TZ, ...opts });
+}
+
+// ============ Locations ============
+// พื้นที่ที่ติดมากับตัวโปรแกรม — มีอยู่ทุกเครื่องที่เปิด ไม่ต้องพึ่ง localStorage และลบไม่ได้
+const PRESET_LOCATIONS = [
+  {
+    id: 'khlongwan',
+    name: 'แปลงมะพร้าวคลองวาฬ',
+    detail: 'อ.สามร้อยยอด จ.ประจวบคีรีขันธ์',
+    lat: 11.7563340,
+    lon: 99.7684976,
+    coconut: true,
+    builtin: true,
+  },
+  {
+    id: 'raikao',
+    name: 'ต.ไร่เก่า',
+    detail: 'อ.สามร้อยยอด จ.ประจวบคีรีขันธ์',
+    lat: 12.2211831,
+    lon: 99.8770225,
+    coconut: true,
+    builtin: true,
+  },
+];
+const DEFAULT_LOCATION = PRESET_LOCATIONS[0];
+
+// ใช้เทียบว่าพิกัดซ้ำกับที่มีอยู่แล้วหรือไม่ (~10 ม.) กันรายการซ้ำจากคนละที่มา
+const coordKey = l => `${Number(l.lat).toFixed(4)},${Number(l.lon).toFixed(4)}`;
+
+const LS_LOCATIONS = 'khlongwan-weather.locations.v1';
+const LS_ACTIVE = 'khlongwan-weather.active.v1';
+
+// localStorage ใช้ไม่ได้ในโหมดส่วนตัวของบางเบราว์เซอร์ — ห้ามให้ทั้งหน้าพังเพราะเรื่องนี้
+function safeLS(fn, fallback = null) {
+  try { return fn(); } catch (e) { console.warn('localStorage ใช้ไม่ได้:', e.message); return fallback; }
+}
+
+function isValidLocation(l) {
+  return !!l
+    && typeof l.name === 'string' && l.name.trim().length > 0
+    && Number.isFinite(l.lat) && Math.abs(l.lat) <= 90
+    && Number.isFinite(l.lon) && Math.abs(l.lon) <= 180;
+}
+
+function normalizeLocation(l) {
+  return {
+    id: String(l.id || `${l.lat},${l.lon}`),
+    name: String(l.name).trim().slice(0, 60),
+    detail: l.detail ? String(l.detail).slice(0, 120) : '',
+    lat: Number(l.lat),
+    lon: Number(l.lon),
+    coconut: l.coconut !== false,
+    builtin: l.builtin === true,
+  };
+}
+
+function loadLocations() {
+  const saved = safeLS(() => JSON.parse(localStorage.getItem(LS_LOCATIONS) || '[]'), []);
+  const presetIds = new Set(PRESET_LOCATIONS.map(l => l.id));
+  const presetCoords = new Set(PRESET_LOCATIONS.map(coordKey));
+  const custom = (Array.isArray(saved) ? saved : [])
+    .filter(isValidLocation)
+    .map(normalizeLocation)
+    // ตัดรายการที่ซ้ำกับ preset ทั้งโดย id และโดยพิกัด — ผู้ใช้อาจเคยวางพิกัดเดียวกัน
+    // ไว้เองก่อนที่มันจะกลายเป็น preset
+    .filter(l => !presetIds.has(l.id) && !presetCoords.has(coordKey(l)));
+  return [...PRESET_LOCATIONS, ...custom];
+}
+
+function persistLocations(list) {
+  safeLS(() => localStorage.setItem(
+    LS_LOCATIONS,
+    JSON.stringify(list.filter(l => !l.builtin))
+  ));
+}
+
+// ?lat=..&lon=..&name=..&coconut=0 — ใช้แชร์ลิงก์พื้นที่ให้คนอื่นเปิดดูได้
+function locationFromUrl() {
+  const p = new URLSearchParams(window.location.search);
+  const lat = parseFloat(p.get('lat'));
+  const lon = parseFloat(p.get('lon'));
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+  const loc = {
+    id: `${lat.toFixed(4)},${lon.toFixed(4)}`,
+    name: p.get('name') || `${lat.toFixed(4)}, ${lon.toFixed(4)}`,
+    lat, lon,
+    coconut: p.get('coconut') !== '0',
+  };
+  return isValidLocation(loc) ? normalizeLocation(loc) : null;
+}
+
+let LOCATIONS = loadLocations();
+let ACTIVE = (() => {
+  const fromUrl = locationFromUrl();
+  if (fromUrl) {
+    // ลิงก์ที่แชร์มาชนะเสมอ ถ้ายังไม่มีในรายการก็เพิ่มและบันทึกทันที
+    // เพื่อให้สิ่งที่เห็นใน dropdown ตรงกับสิ่งที่ถูกเก็บไว้จริง (เปิดครั้งหน้าก็ยังอยู่)
+    // เทียบด้วยพิกัดด้วย ไม่งั้นลิงก์ที่ชี้มาที่ preset จะสร้างรายการซ้ำขึ้นมาอีกอัน
+    const existing = LOCATIONS.find(l => l.id === fromUrl.id || coordKey(l) === coordKey(fromUrl));
+    if (existing) return existing;
+    LOCATIONS = [...LOCATIONS, { ...fromUrl, detail: fromUrl.detail || 'เพิ่มจากลิงก์ที่แชร์' }];
+    persistLocations(LOCATIONS);
+    return LOCATIONS[LOCATIONS.length - 1];
+  }
+  const savedId = safeLS(() => localStorage.getItem(LS_ACTIVE));
+  return LOCATIONS.find(l => l.id === savedId) || DEFAULT_LOCATION;
+})();
 
 // ============ State ============
 let chartObj = null;
 let refreshTimer = null;
+// กันผลลัพธ์ของ request เก่าเขียนทับหน้าจอ เมื่อผู้ใช้สลับพื้นที่ระหว่างที่ยังโหลดไม่เสร็จ
+let renderToken = 0;
 
 // ============ Longdo Weather API ============
 async function fetchLongdoRain() {
   try {
-    const url = `https://weather.longdo.com/rain/api/v1/location?key=${LONGDO_KEY}&lat=${LAT}&lon=${LON}`;
+    const url = `https://weather.longdo.com/rain/api/v1/location?key=${LONGDO_KEY}&lat=${ACTIVE.lat}&lon=${ACTIVE.lon}`;
     const r = await fetch(url);
     if (!r.ok) {
       console.warn(`Longdo rain HTTP ${r.status}`);
@@ -536,7 +1047,7 @@ async function fetchLongdoRain() {
 
 async function fetchLongdoWind() {
   try {
-    const url = `https://weather.longdo.com/wind/api/v1/location?key=${LONGDO_KEY}&lat=${LAT}&lon=${LON}`;
+    const url = `https://weather.longdo.com/wind/api/v1/location?key=${LONGDO_KEY}&lat=${ACTIVE.lat}&lon=${ACTIVE.lon}`;
     const r = await fetch(url);
     if (!r.ok) {
       console.warn(`Longdo wind HTTP ${r.status}`);
@@ -551,19 +1062,53 @@ async function fetchLongdoWind() {
 
 // ============ Open-Meteo API ============
 async function fetchOpenMeteoArchive() {
-  const end = new Date(Date.now() - 86400000).toISOString().slice(0, 10); // เมื่อวาน (archive lag ~1 day)
-  const start = new Date(Date.now() - 14 * 86400000).toISOString().slice(0, 10); // ย้อนหลัง 14 วัน (สำหรับ chart)
-  const url = `https://archive-api.open-meteo.com/v1/archive?latitude=${LAT}&longitude=${LON}&start_date=${start}&end_date=${end}&daily=precipitation_sum,precipitation_hours&hourly=precipitation&timezone=Asia%2FBangkok`;
+  // คำนวณช่วงวันที่ตามวันที่ในไทย — เดิมใช้ toISOString() ซึ่งเป็น UTC ทำให้ช่วง 00:00-07:00
+  // ตามเวลาไทย ได้ช่วงวันที่คลาดไป 1 วัน
+  const today = bkkDateStr();
+  const end = addDays(today, -1);
+  const start = addDays(today, -14); // ย้อนหลัง 14 วัน (สำหรับ chart)
+  // era5_land = ~9 กม. (ERA5 ปกติ ~31 กม.) ละเอียดกว่ามากสำหรับจุดชายฝั่งที่มีเขาหินปูน
+  const url = `https://archive-api.open-meteo.com/v1/archive?latitude=${ACTIVE.lat}&longitude=${ACTIVE.lon}&start_date=${start}&end_date=${end}&daily=precipitation_sum,precipitation_hours&hourly=precipitation&timezone=Asia%2FBangkok&models=era5_land&cell_selection=${CELL}`;
   const r = await fetch(url);
   if (!r.ok) throw new Error(`Open-Meteo archive: HTTP ${r.status}`);
   return await r.json();
 }
 
 async function fetchOpenMeteoForecast() {
-  const url = `https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}&daily=precipitation_sum,precipitation_probability_max,temperature_2m_max,temperature_2m_min&current=temperature_2m,relative_humidity_2m,precipitation,rain,weather_code,wind_speed_10m&hourly=precipitation,precipitation_probability&timezone=Asia%2FBangkok&forecast_days=14`;
+  // past_days=7 → ได้ข้อมูลย้อนหลังจาก endpoint เดียวกับพยากรณ์ ใช้เติมช่วงที่ archive API
+  // ยังไม่อัปเดต (archive มี lag ได้หลายวัน) เพื่อไม่ให้ panel ย้อนหลังกลายเป็นช่องว่าง
+  const url = `https://api.open-meteo.com/v1/forecast?latitude=${ACTIVE.lat}&longitude=${ACTIVE.lon}&daily=precipitation_sum,precipitation_probability_max,temperature_2m_max,temperature_2m_min&current=temperature_2m,relative_humidity_2m,precipitation,rain,weather_code,wind_speed_10m&hourly=precipitation,precipitation_probability&timezone=Asia%2FBangkok&forecast_days=14&past_days=7&cell_selection=${CELL}`;
   const r = await fetch(url);
   if (!r.ok) throw new Error(`Open-Meteo forecast: HTTP ${r.status}`);
   return await r.json();
+}
+
+// เรียกหลายโมเดลในครั้งเดียว — Open-Meteo จะต่อท้ายชื่อโมเดลให้ทุกตัวแปร
+// เช่น precipitation_sum_ecmwf_ifs025
+async function fetchOpenMeteoModels() {
+  const url = `https://api.open-meteo.com/v1/forecast?latitude=${ACTIVE.lat}&longitude=${ACTIVE.lon}&daily=precipitation_sum&timezone=Asia%2FBangkok&forecast_days=14&cell_selection=${CELL}&models=${COMPARE_MODELS.join(',')}`;
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(`Open-Meteo models: HTTP ${r.status}`);
+  return await r.json();
+}
+
+// Ensemble — สมาชิกหลายสิบชุดต่อหนึ่งวัน ใช้คำนวณความน่าจะเป็นและช่วงค่า
+// แทนตัวเลขเดี่ยวที่ให้ความรู้สึกแม่นเกินจริง
+// ขอเป็น hourly แล้วรวมเป็นรายวันตามเวลาไทยเอง (คุมขอบเขตวันได้ตรงกับส่วนอื่น)
+async function fetchOpenMeteoEnsemble() {
+  const url = `https://ensemble-api.open-meteo.com/v1/ensemble?latitude=${ACTIVE.lat}&longitude=${ACTIVE.lon}&hourly=precipitation&timezone=Asia%2FBangkok&forecast_days=14&cell_selection=${CELL}&models=${ENSEMBLE_MODEL}`;
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(`Open-Meteo ensemble: HTTP ${r.status}`);
+  return await r.json();
+}
+
+// ค้นหาพิกัดจากชื่อสถานที่ (ฟรี ไม่ต้องใช้ key รองรับภาษาไทย)
+async function geocodeSearch(query) {
+  const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=8&language=th&format=json`;
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(`ค้นหาไม่สำเร็จ (HTTP ${r.status})`);
+  const j = await r.json();
+  return Array.isArray(j.results) ? j.results : [];
 }
 
 // ============ Rain Events ============
@@ -599,42 +1144,84 @@ function getCurrentRainStatus(omCurrent) {
   return { status: 'ไม่ทราบ', desc: `code=${wc}`, isRainy: precip >= 0.1 };
 }
 
+// รวมชั่วโมงฝนที่ติดกันเป็น 1 event — เก็บรายชั่วโมงไว้ด้วย เพื่อให้ตัดแบ่งตามวันได้แม่นยำ
+function summarizeHours(hours) {
+  return {
+    hourList: hours,
+    startMs: hours[0].startMs,
+    endMs: hours[hours.length - 1].startMs + 3600000, // ปลายช่วงแบบ exclusive
+    hours: hours.length,
+    totalMm: hours.reduce((s, h) => s + h.precip, 0),
+    maxMm: Math.max(...hours.map(h => h.precip)),
+    maxProb: Math.max(...hours.map(h => h.prob)),
+  };
+}
+
 function detectRainEvents(hourly, thresholdMm = 0.1, thresholdProb = 60) {
   const events = [];
+  const times = hourly?.time || [];
   let current = null;
 
-  for (let i = 0; i < hourly.time.length; i++) {
-    const time = hourly.time[i];
-    const precip = hourly.precipitation?.[i] || 0;
-    const prob = hourly.precipitation_probability?.[i] || 0;
+  for (let i = 0; i < times.length; i++) {
+    const precip = hourly.precipitation?.[i] ?? 0;
+    const prob = hourly.precipitation_probability?.[i] ?? 0;
 
     // ถือว่าฝนตก ถ้ามีปริมาณจริง หรือโอกาสสูงพอ
     const isRainy = precip >= thresholdMm || prob >= thresholdProb;
 
     if (isRainy) {
-      if (!current) {
-        current = {
-          start: time,
-          end: time,
-          hours: 1,
-          totalMm: precip,
-          maxMm: precip,
-          maxProb: prob,
-        };
-      } else {
-        current.end = time;
-        current.hours += 1;
-        current.totalMm += precip;
-        current.maxMm = Math.max(current.maxMm, precip);
-        current.maxProb = Math.max(current.maxProb, prob);
-      }
+      const hour = { startMs: bkkToEpoch(times[i]), precip, prob };
+      if (!current) current = [hour];
+      else current.push(hour);
     } else if (current) {
-      events.push(current);
+      events.push(summarizeHours(current));
       current = null;
     }
   }
-  if (current) events.push(current);
+  if (current) events.push(summarizeHours(current));
   return events;
+}
+
+// จัดกลุ่ม event ตามวัน — event ที่คร่อมเที่ยงคืนจะถูก "ตัดแบ่ง" ให้ปรากฏในทั้งสองวัน
+// (เดิมใช้ e.start.slice(0,10) ทำให้ฝน 23:00-02:00 ถูกนับเป็นของเมื่อวานทั้งก้อน
+//  และหายไปจากหน้าของวันถัดไป)
+function groupEventsByDay(events) {
+  const byDate = {};
+  for (const e of events) {
+    const perDay = new Map();
+    for (const h of e.hourList) {
+      const d = bkkDateStr(h.startMs);
+      if (!perDay.has(d)) perDay.set(d, []);
+      perDay.get(d).push(h);
+    }
+    for (const [date, hours] of perDay) {
+      const seg = summarizeHours(hours);
+      seg.continuesFromPrevDay = seg.startMs !== e.startMs;
+      seg.continuesToNextDay = seg.endMs !== e.endMs;
+      if (!byDate[date]) byDate[date] = [];
+      byDate[date].push(seg);
+    }
+  }
+  return byDate;
+}
+
+// วันไหนบ้างที่ "มีข้อมูลรายชั่วโมงครบ" — ใช้แยก "ไม่มีฝนตก" ออกจาก "ยังไม่มีข้อมูล"
+function coveredDates(hourly) {
+  const perDay = new Map();
+  const times = hourly?.time || [];
+  const precip = hourly?.precipitation || [];
+  for (let i = 0; i < times.length; i++) {
+    if (precip[i] == null) continue;
+    const d = times[i].slice(0, 10);
+    perDay.set(d, (perDay.get(d) || 0) + 1);
+  }
+  return new Set([...perDay].filter(([, n]) => n >= 24).map(([d]) => d));
+}
+
+// ฝนกำลังตกจริงหรือไม่ ตามค่าสังเกตการณ์ล่าสุด (ใช้ร่วมกันหลายที่ ไม่ให้ logic แตกกัน)
+function isObservedRaining(omCurrent) {
+  if (!omCurrent) return false;
+  return getCurrentRainStatus(omCurrent).isRainy;
 }
 
 function classifyIntensity(maxMm) {
@@ -646,10 +1233,6 @@ function classifyIntensity(maxMm) {
   return                  { level: 'เบา',      color: '#06b6d4' };
 }
 
-function formatHour(date) {
-  return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
-}
-
 function renderRainEvents(forecast, currentObs = null) {
   const container = document.getElementById('rain-events');
   container.innerHTML = '';
@@ -659,28 +1242,20 @@ function renderRainEvents(forecast, currentObs = null) {
     return;
   }
 
-  const events = detectRainEvents(forecast.hourly);
+  const byDate = groupEventsByDay(detectRainEvents(forecast.hourly));
 
-  // Group by date (YYYY-MM-DD in local time, but forecast uses Asia/Bangkok TZ)
-  const byDate = {};
-  for (const e of events) {
-    const date = e.start.slice(0, 10);
-    if (!byDate[date]) byDate[date] = [];
-    byDate[date].push(e);
-  }
-
-  // วันนี้ + พรุ่งนี้ (ใช้เวลาท้องถิ่น Asia/Bangkok)
-  const today = new Date();
-  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
-  const tomorrowDate = new Date(today.getTime() + 86400000);
-  const tomorrowStr = `${tomorrowDate.getFullYear()}-${String(tomorrowDate.getMonth() + 1).padStart(2,'0')}-${String(tomorrowDate.getDate()).padStart(2,'0')}`;
+  // วันนี้ + พรุ่งนี้ ตามวันที่ในไทย (เดิมอ่านจากนาฬิกาเครื่องผู้ใช้ ทำให้เปิดจากนอกไทย
+  // แล้วได้คนละวันกับ key ที่ Open-Meteo ส่งมา)
+  const todayStr = bkkDateStr();
+  const tomorrowStr = addDays(todayStr, 1);
 
   const nowMs = Date.now();
+  // ป้าย "กำลังตก" ต้องมี observation จริงยืนยัน ไม่ใช่เชื่อ forecast อย่างเดียว
+  const rainingNow = isObservedRaining(currentObs);
 
   for (const date of [todayStr, tomorrowStr]) {
     const dayEvents = byDate[date] || [];
-    const dayDate = new Date(date + 'T00:00:00');
-    const dayName = dayDate.toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'short' });
+    const dayName = bkkDayLabel(date, { weekday: 'long', day: 'numeric', month: 'short' });
     const totalMm = dayEvents.reduce((s, e) => s + e.totalMm, 0);
 
     const dayDiv = document.createElement('div');
@@ -694,28 +1269,27 @@ function renderRainEvents(forecast, currentObs = null) {
       `;
     } else {
       const cards = dayEvents.map(e => {
-        const startTime = new Date(e.start);
-        // end time ของ event คือเวลาสุดท้ายที่ยังมีฝน -> +1 ชม. เพื่อแสดงช่วงเวลา
-        const endTime = new Date(new Date(e.end).getTime() + 3600000);
         const intensity = classifyIntensity(e.maxMm);
 
-        // ถ้า event ครอบคลุมเวลาปัจจุบัน (วันนี้) → ติดป้าย "กำลังตก"
-        const isOngoing = date === todayStr && startTime.getTime() <= nowMs && endTime.getTime() >= nowMs;
-        // ป้าย "กำลังตก" ต้อง require observation จริง (forecast + observed ตรงกัน) — ไม่ใช่แค่เช็คจากเวลา forecast
-        const isRainingNow = currentObs && (
-          (currentObs.precipitation ?? 0) >= 0.1 ||
-          ((currentObs.weather_code ?? -1) >= 51 && (currentObs.weather_code ?? -1) <= 99)
-        );
-        const ongoingBadge = (isOngoing && isRainingNow)
+        // event ครอบคลุมเวลาปัจจุบันหรือไม่ — เทียบด้วย epoch จริงทั้งคู่
+        const isOngoing = e.startMs <= nowMs && e.endMs > nowMs;
+        const ongoingBadge = (isOngoing && rainingNow)
           ? '<span class="rain-now-indicator">⚡ กำลังตก</span>'
+          : '';
+        const carry = [
+          e.continuesFromPrevDay ? '↩ ต่อจากเมื่อวาน' : '',
+          e.continuesToNextDay ? '↪ ต่อถึงวันถัดไป' : '',
+        ].filter(Boolean).join(' ');
+        const carryNote = carry
+          ? `<span class="rain-event-duration">${carry}</span>`
           : '';
 
         return `
           <div class="rain-event" style="border-left-color:${intensity.color}">
             <div class="rain-event-time">
-              ⏰ ${formatHour(startTime)} - ${formatHour(endTime)}
+              ⏰ ${bkkHour(e.startMs)} - ${bkkHour(e.endMs)}
               <span class="rain-event-duration">(${e.hours} ชม.)</span>
-              ${ongoingBadge}
+              ${ongoingBadge}${carryNote}
             </div>
             <div class="rain-event-stats">
               <div class="rain-event-mm">${e.totalMm.toFixed(1)} มม.</div>
@@ -744,51 +1318,82 @@ function renderRainEvents(forecast, currentObs = null) {
 }
 
 // ============ Rain History (past) ============
-function renderRainHistory(archive) {
+// รวม hourly ของ archive กับ hourly ย้อนหลังของ forecast (past_days) ให้เป็นชุดเดียว
+// archive API มี lag ได้หลายวัน — ถ้าใช้ archive อย่างเดียว วันที่ยังไม่ถูกเผยแพร่จะกลายเป็น
+// ช่องว่างที่หน้าเว็บเคยแสดงผิดเป็น "ไม่มีฝนตก"
+function mergePastHourly(archive, forecast) {
+  const time = [];
+  const precipitation = [];
+  const seen = new Set();
+
+  const push = (t, p) => {
+    if (p == null || seen.has(t)) return;
+    seen.add(t);
+    time.push(t);
+    precipitation.push(p);
+  };
+
+  (archive?.hourly?.time || []).forEach((t, i) => push(t, archive.hourly.precipitation?.[i]));
+  (forecast?.hourly?.time || []).forEach((t, i) => push(t, forecast.hourly.precipitation?.[i]));
+
+  // detectRainEvents ต้องการลำดับเวลาที่เรียงแล้ว จึงต้อง sort หลังรวมสองแหล่ง
+  const order = time.map((t, i) => i).sort((a, b) => (time[a] < time[b] ? -1 : time[a] > time[b] ? 1 : 0));
+  return {
+    time: order.map(i => time[i]),
+    precipitation: order.map(i => precipitation[i]),
+  };
+}
+
+function renderRainHistory(archive, forecast) {
   const container = document.getElementById('rain-history');
   container.innerHTML = '';
 
-  if (!archive.hourly?.time?.length) {
+  const hourly = mergePastHourly(archive, forecast);
+  if (!hourly.time.length) {
     container.innerHTML = '<div class="rain-day-empty">⚠️ ไม่มีข้อมูล hourly</div>';
     return;
   }
 
-  // Archive hourly ไม่มี precipitation_probability → threshold แค่ precipitation ≥ 0.1mm
-  const events = detectRainEvents(archive.hourly, 0.1, 999); // thresholdProb=999 บังคับใช้ precipitation อย่างเดียว
+  // hourly ย้อนหลังไม่มี precipitation_probability → thresholdProb=999 บังคับใช้ปริมาณจริงอย่างเดียว
+  const byDate = groupEventsByDay(detectRainEvents(hourly, 0.1, 999));
+  const covered = coveredDates(hourly);
 
-  // Group by date
-  const byDate = {};
-  for (const e of events) {
-    const date = e.start.slice(0, 10);
-    if (!byDate[date]) byDate[date] = [];
-    byDate[date].push(e);
-  }
-
-  // ย้อนหลัง 7 วัน (ไม่รวมวันนี้ เพราะยังไม่สมบูรณ์ใน archive)
+  // ย้อนหลัง 7 วัน ตามวันที่ในไทย (ไม่รวมวันนี้ เพราะยังไม่จบวัน)
+  const todayStr = bkkDateStr();
   const dates = [];
-  for (let i = 1; i <= 7; i++) {
-    const d = new Date(Date.now() - i * 86400000);
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    dates.push(`${y}-${m}-${day}`);
-  }
+  for (let i = 7; i >= 1; i--) dates.push(addDays(todayStr, -i));
 
   let totalEvents = 0;
   let totalMm = 0;
+  let missingDays = 0;
 
   for (const date of dates) {
     const dayEvents = byDate[date] || [];
-    const dayDate = new Date(date + 'T00:00:00');
-    const dayName = dayDate.toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'short' });
+    const dayName = bkkDayLabel(date, { weekday: 'long', day: 'numeric', month: 'short' });
+    const hasData = covered.has(date);
     const dayTotal = dayEvents.reduce((s, e) => s + e.totalMm, 0);
-    totalEvents += dayEvents.length;
-    totalMm += dayTotal;
+
+    if (hasData) {
+      totalEvents += dayEvents.length;
+      totalMm += dayTotal;
+    } else {
+      missingDays += 1;
+    }
 
     const dayDiv = document.createElement('div');
     dayDiv.style.marginBottom = '16px';
 
-    if (dayEvents.length === 0) {
+    if (!hasData) {
+      // แยก "ยังไม่มีข้อมูล" ออกจาก "ไม่มีฝนตก" — เดิมแสดงเหมือนกันหมด ทำให้เข้าใจผิดว่าฝนไม่ตก
+      dayDiv.innerHTML = `
+        <div class="rain-day-header">
+          <h3>📅 ${dayName}</h3>
+        </div>
+        <div class="rain-day-empty" style="padding:10px 14px;font-size:0.85em;background:#f8fafc;border-color:#cbd5e0;color:#64748b;">
+          ⏳ ยังไม่มีข้อมูล (แหล่งข้อมูลย้อนหลังยังไม่อัปเดตวันนี้)
+        </div>
+      `;
+    } else if (dayEvents.length === 0) {
       dayDiv.innerHTML = `
         <div class="rain-day-header">
           <h3>📅 ${dayName}</h3>
@@ -799,13 +1404,11 @@ function renderRainHistory(archive) {
       `;
     } else {
       const cards = dayEvents.map(e => {
-        const startTime = new Date(e.start);
-        const endTime = new Date(new Date(e.end).getTime() + 3600000);
         const intensity = classifyIntensity(e.maxMm);
         return `
           <div class="rain-event" style="border-left-color:${intensity.color}">
             <div class="rain-event-time">
-              ⏰ ${formatHour(startTime)} - ${formatHour(endTime)}
+              ⏰ ${bkkHour(e.startMs)} - ${bkkHour(e.endMs)}
               <span class="rain-event-duration">(${e.hours} ชม.)</span>
             </div>
             <div class="rain-event-stats">
@@ -829,17 +1432,404 @@ function renderRainHistory(archive) {
     container.appendChild(dayDiv);
   }
 
-  // สรุปรวม 7 วัน
+  // สรุปรวม 7 วัน — นับเฉพาะวันที่มีข้อมูลจริง
   const summary = document.createElement('div');
   summary.style.cssText = 'margin-top:16px;padding:14px 18px;background:linear-gradient(135deg,#eef2ff 0%,#e0e7ff 100%);border-radius:12px;display:flex;justify-content:space-around;flex-wrap:wrap;gap:10px;font-size:0.9em;color:#1e3c72;font-weight:600;';
   summary.innerHTML = `
-    <span>📊 7 วันย้อนหลัง</span>
+    <span>📊 ${dates.length - missingDays} วันที่มีข้อมูล</span>
     <span>ฝนตกรวม <b style="color:#2563eb">${totalEvents} ครั้ง</b></span>
     <span>ปริมาณรวม <b style="color:#2563eb">${totalMm.toFixed(1)} มม.</b></span>
+    ${missingDays ? `<span style="color:#64748b;font-weight:500;">⏳ ขาดข้อมูล ${missingDays} วัน</span>` : ''}
   `;
   container.appendChild(summary);
 }
 
+
+// ============ Ensemble (ความน่าจะเป็น + ช่วงค่า) ============
+// โมเดลเดี่ยวให้ตัวเลขเดียว เช่น "8.0 มม." ซึ่งให้ความรู้สึกแม่นเกินกว่าที่ข้อมูลรองรับ
+// ensemble รันโมเดลหลายสิบชุดด้วยเงื่อนไขตั้งต้นต่างกันเล็กน้อย → บอกได้ว่า
+// "โอกาสตก 85% ปริมาณน่าจะอยู่ระหว่าง 2-25 มม." ซึ่งตรงกับความจริงมากกว่า
+
+// ชื่อคีย์สมาชิกคือ precipitation_member01..NN (บางระบบใส่สมาชิกควบคุมเป็น
+// "precipitation" เฉย ๆ จึงรับทั้งสองรูปแบบ)
+function ensembleMemberKeys(hourly) {
+  return Object.keys(hourly || {}).filter(k => /^precipitation(_member\d+)?$/.test(k));
+}
+
+// รวมรายชั่วโมง → ยอดรวมรายวันของ "แต่ละสมาชิก"  คืน Map: date -> number[]
+function ensembleDailyTotals(ensemble) {
+  const hourly = ensemble?.hourly;
+  const times = hourly?.time || [];
+  const keys = ensembleMemberKeys(hourly);
+  if (!times.length || !keys.length) return new Map();
+
+  const acc = new Map();
+  for (let i = 0; i < times.length; i++) {
+    const date = times[i].slice(0, 10);
+    if (!acc.has(date)) acc.set(date, keys.map(() => ({ sum: 0, n: 0 })));
+    const day = acc.get(date);
+    keys.forEach((k, m) => {
+      const v = hourly[k]?.[i];
+      if (v != null) { day[m].sum += v; day[m].n += 1; }
+    });
+  }
+
+  // ตัดวันที่ชั่วโมงไม่ครบออก ไม่งั้นยอดรายวันจะต่ำผิดปกติ (วันแรก/วันสุดท้ายของช่วง)
+  const out = new Map();
+  for (const [date, day] of acc) {
+    const full = day.filter(a => a.n >= 24).map(a => a.sum);
+    if (full.length) out.set(date, full);
+  }
+  return out;
+}
+
+function quantile(sortedAsc, q) {
+  if (!sortedAsc.length) return null;
+  const pos = (sortedAsc.length - 1) * q;
+  const lo = Math.floor(pos), hi = Math.ceil(pos);
+  return sortedAsc[lo] + (sortedAsc[hi] - sortedAsc[lo]) * (pos - lo);
+}
+
+function ensembleStats(members) {
+  if (!members?.length) return null;
+  const sorted = [...members].sort((a, b) => a - b);
+  const probs = {};
+  for (const t of RAIN_THRESHOLDS) {
+    probs[t] = Math.round(100 * sorted.filter(v => v >= t).length / sorted.length);
+  }
+  return {
+    n: sorted.length,
+    p10: quantile(sorted, 0.10),
+    p25: quantile(sorted, 0.25),
+    p50: quantile(sorted, 0.50),
+    p75: quantile(sorted, 0.75),
+    p90: quantile(sorted, 0.90),
+    probs,
+  };
+}
+
+// ยอดรวมหลายวัน ต้องรวมรายสมาชิกก่อนแล้วค่อยหาควอนไทล์
+// (เอา p50 ของแต่ละวันมาบวกกัน ไม่เท่ากับ p50 ของยอดรวม)
+function ensembleRangeTotal(dailyTotals, dates) {
+  const usable = dates.filter(d => dailyTotals.has(d));
+  if (!usable.length) return null;
+  const n = Math.min(...usable.map(d => dailyTotals.get(d).length));
+  const perMember = [];
+  for (let m = 0; m < n; m++) {
+    perMember.push(usable.reduce((s, d) => s + dailyTotals.get(d)[m], 0));
+  }
+  const stats = ensembleStats(perMember);
+  return stats && { ...stats, days: usable.length };
+}
+
+// ============ Model agreement ============
+// โมเดลหลายตัวเห็นตรงกัน = เชื่อได้สูง / เห็นแย้งกัน = สัญญาณอ่อน
+function modelAgreement(multi, threshold = 0.1) {
+  const times = multi?.daily?.time || [];
+  const byDate = new Map();
+  for (let i = 0; i < times.length; i++) {
+    const votes = [];
+    for (const m of COMPARE_MODELS) {
+      const v = multi.daily[`precipitation_sum_${m}`]?.[i];
+      // โมเดลแต่ละตัวยาวไม่เท่ากัน (ICON ~7.5 วัน, GFS ~16 วัน) — ช่วงที่ไม่มีข้อมูล
+      // ต้องไม่ถูกนับเป็นเสียง "ไม่ตก"
+      if (v == null) continue;
+      votes.push({ model: m, mm: v, rain: v >= threshold });
+    }
+    if (votes.length) byDate.set(times[i], votes);
+  }
+  return byDate;
+}
+
+function agreementLevel(votes) {
+  const yes = votes.filter(v => v.rain).length;
+  const ratio = yes / votes.length;
+  if (ratio === 1)     return { label: 'ตรงกันว่าตก',    color: '#15803d' };
+  if (ratio >= 0.66)   return { label: 'ส่วนใหญ่ว่าตก',  color: '#65a30d' };
+  if (ratio >= 0.34)   return { label: 'เห็นไม่ตรงกัน',  color: '#ca8a04' };
+  if (ratio > 0)       return { label: 'ส่วนน้อยว่าตก',  color: '#ea580c' };
+  return                      { label: 'ตรงกันว่าไม่ตก', color: '#0891b2' };
+}
+
+const THRESHOLD_META = {
+  0.1: { label: 'มีฝน',        hint: '≥ 0.1 มม.', color: '#0ea5e9' },
+  5:   { label: 'ฝนพอควร',    hint: '≥ 5 มม.',   color: '#2563eb' },
+  20:  { label: 'ฝนหนัก',      hint: '≥ 20 มม.',  color: '#dc2626' },
+};
+
+function renderConfidence(ensembleDaily, agreement) {
+  const container = document.getElementById('confidence');
+  container.innerHTML = '';
+
+  const todayStr = bkkDateStr();
+  const rows = [];
+  for (let i = 0; i < DETAILED_FORECAST_DAYS; i++) {
+    const date = addDays(todayStr, i);
+    const members = ensembleDaily.get(date);
+    const stats = members ? ensembleStats(members) : null;
+    const votes = agreement.get(date) || null;
+    if (stats || votes) rows.push({ date, stats, votes });
+  }
+
+  if (!rows.length) {
+    container.innerHTML = '<div class="rain-day-empty">⚠️ ไม่มีข้อมูล ensemble / multi-model</div>';
+    return;
+  }
+
+  let html = '';
+  for (const { date, stats, votes } of rows) {
+    const dayName = bkkDayLabel(date, { weekday: 'long', day: 'numeric', month: 'short' });
+    const isToday = date === todayStr;
+
+    let badge = '';
+    if (votes) {
+      const lvl = agreementLevel(votes);
+      const yes = votes.filter(v => v.rain).length;
+      badge = `<span class="conf-badge" style="background:${lvl.color}">${yes}/${votes.length} ${lvl.label}</span>`;
+    }
+
+    let probsHtml = '';
+    if (stats) {
+      probsHtml = RAIN_THRESHOLDS.map(t => {
+        const meta = THRESHOLD_META[t];
+        const p = stats.probs[t];
+        return `
+          <div class="conf-prob-row">
+            <span class="conf-prob-label">${meta.label} <em>${meta.hint}</em></span>
+            <div class="conf-bar"><div class="conf-bar-fill" style="width:${p}%;background:${meta.color}"></div></div>
+            <span class="conf-prob-val" style="color:${meta.color}">${p}%</span>
+          </div>
+        `;
+      }).join('');
+    } else {
+      probsHtml = '<div class="conf-nodata">ไม่มีข้อมูล ensemble สำหรับวันนี้</div>';
+    }
+
+    const rangeHtml = stats ? `
+      <div class="conf-range">
+        <div class="conf-range-label">ปริมาณที่เป็นไปได้</div>
+        <div class="conf-range-val">${stats.p10.toFixed(1)} – ${stats.p90.toFixed(1)}<span> มม.</span></div>
+        <div class="conf-range-sub">ค่ากลาง ${stats.p50.toFixed(1)} มม. · จาก ${stats.n} ชุด</div>
+      </div>
+    ` : '';
+
+    const modelsHtml = votes ? `
+      <div class="conf-models">
+        ${votes.map(v => `<span class="conf-model ${v.rain ? 'yes' : 'no'}" title="${v.mm.toFixed(1)} มม.">${MODEL_LABEL[v.model] || v.model} ${v.rain ? '✓' : '✗'}</span>`).join('')}
+      </div>
+    ` : '';
+
+    html += `
+      <div class="conf-day${isToday ? ' today' : ''}">
+        <div class="conf-head">
+          <h3>${isToday ? '📌 วันนี้ · ' : ''}${dayName}</h3>
+          ${badge}
+        </div>
+        <div class="conf-body">
+          <div class="conf-probs">${probsHtml}</div>
+          ${rangeHtml}
+        </div>
+        ${modelsHtml}
+      </div>
+    `;
+  }
+
+  // --- แนวโน้มระยะไกล (วันที่ 8-14) ---
+  const outlookDates = [];
+  for (let i = DETAILED_FORECAST_DAYS; i < 14; i++) outlookDates.push(addDays(todayStr, i));
+  const outlook = ensembleRangeTotal(ensembleDaily, outlookDates);
+
+  if (outlook) {
+    const wetDays = outlookDates.filter(d => {
+      const m = ensembleDaily.get(d);
+      return m && ensembleStats(m).probs[0.1] >= 50;
+    }).length;
+    const from = bkkDayLabel(outlookDates[0], { day: 'numeric', month: 'short' });
+    const to = bkkDayLabel(outlookDates[outlookDates.length - 1], { day: 'numeric', month: 'short' });
+    html += `
+      <div class="conf-outlook">
+        <div class="conf-outlook-title">📆 แนวโน้มระยะไกล (${from} – ${to})</div>
+        <div class="conf-outlook-body">
+          ฝนรวมทั้งช่วง <b>${outlook.p50.toFixed(0)} มม.</b>
+          <span class="conf-outlook-range">(อาจอยู่ระหว่าง ${outlook.p10.toFixed(0)} – ${outlook.p90.toFixed(0)} มม.)</span>
+          · น่าจะมีฝน <b>${wetDays}</b> จาก ${outlook.days} วัน
+        </div>
+        <div class="conf-outlook-warn">
+          ⚠️ พยากรณ์ฝนรายวันของจุดเดียวในเขตร้อนแทบไม่มีความแม่นเกิน ${DETAILED_FORECAST_DAYS} วัน
+          — ช่วงนี้ใช้ดู<b>แนวโน้ม</b>เท่านั้น อย่าใช้วางแผนงานรายวัน
+        </div>
+      </div>
+    `;
+  }
+
+  container.innerHTML = html;
+}
+
+// ============ ปฏิทินปริมาณฝน ============
+function bkkWeekday(dateStr) {
+  // bkkToEpoch ให้ epoch ของเที่ยงคืนไทย บวก offset กลับแล้วอ่าน UTC day = วันในสัปดาห์ของไทย
+  return new Date(bkkToEpoch(dateStr) + TZ_OFFSET_MS).getUTCDay();
+}
+
+function daysInMonth(ym) {
+  const [y, m] = ym.split('-').map(Number);
+  return new Date(Date.UTC(y, m, 0)).getUTCDate();
+}
+
+// รวมข้อมูลรายวันจากทุกแหล่ง แยกว่าเป็น "ตกจริงแล้ว" หรือ "พยากรณ์"
+function rainCalendarData(archive, forecast, ensembleDaily) {
+  const todayStr = bkkDateStr();
+  const map = new Map();
+
+  const aT = archive?.daily?.time || [];
+  const aS = archive?.daily?.precipitation_sum || [];
+  aT.forEach((d, i) => {
+    if (aS[i] != null && d < todayStr) map.set(d, { mm: aS[i], kind: 'actual' });
+  });
+
+  const fT = forecast?.daily?.time || [];
+  const fS = forecast?.daily?.precipitation_sum || [];
+  const fP = forecast?.daily?.precipitation_probability_max || [];
+  fT.forEach((d, i) => {
+    if (fS[i] == null) return;
+    if (d < todayStr) {
+      // เติมช่วงที่ archive ยังไม่อัปเดต
+      if (!map.has(d)) map.set(d, { mm: fS[i], kind: 'actual' });
+    } else {
+      const members = ensembleDaily?.get(d);
+      const stats = members ? ensembleStats(members) : null;
+      map.set(d, {
+        mm: stats ? stats.p50 : fS[i],
+        kind: 'forecast',
+        prob: stats ? stats.probs[0.1] : (fP[i] ?? null),
+      });
+    }
+  });
+
+  return map;
+}
+
+// ไล่สีตามปริมาณฝน — ใช้ระดับเดียวกับที่ชาวสวนใช้ตัดสินใจ ไม่ใช่ไล่เฉดต่อเนื่อง
+function rainCellStyle(mm) {
+  if (mm == null)  return { bg: '#f8fafc', fg: '#cbd5e0', border: '#e2e8f0' };
+  if (mm < 0.1)    return { bg: '#f1f5f9', fg: '#94a3b8', border: '#e2e8f0' };
+  if (mm < 2)      return { bg: '#e0f2fe', fg: '#075985', border: '#bae6fd' };
+  if (mm < 10)     return { bg: '#7dd3fc', fg: '#0c4a6e', border: '#38bdf8' };
+  if (mm < 25)     return { bg: '#0ea5e9', fg: '#ffffff', border: '#0284c7' };
+  if (mm < 50)     return { bg: '#1d4ed8', fg: '#ffffff', border: '#1e40af' };
+  return             { bg: '#4c1d95', fg: '#ffffff', border: '#3b0764' };
+}
+
+const CAL_LEGEND = [
+  { label: 'ไม่มีฝน', mm: 0 },
+  { label: '< 2',     mm: 1 },
+  { label: '2-10',    mm: 5 },
+  { label: '10-25',   mm: 15 },
+  { label: '25-50',   mm: 30 },
+  { label: '50+',     mm: 60 },
+];
+
+let calendarMonth = null; // "YYYY-MM"
+
+function renderRainCalendar(data) {
+  const container = document.getElementById('rain-calendar');
+  const titleEl = document.getElementById('cal-title');
+  container.innerHTML = '';
+
+  const dates = [...data.keys()].sort();
+  if (!dates.length) {
+    titleEl.textContent = '—';
+    container.innerHTML = '<div class="rain-day-empty">⚠️ ไม่มีข้อมูลสำหรับปฏิทิน</div>';
+    document.getElementById('cal-prev').disabled = true;
+    document.getElementById('cal-next').disabled = true;
+    return;
+  }
+
+  const todayStr = bkkDateStr();
+  const months = [...new Set(dates.map(d => d.slice(0, 7)))].sort();
+  if (!calendarMonth || !months.includes(calendarMonth)) {
+    const thisMonth = todayStr.slice(0, 7);
+    calendarMonth = months.includes(thisMonth) ? thisMonth : months[0];
+  }
+
+  const idx = months.indexOf(calendarMonth);
+  document.getElementById('cal-prev').disabled = idx <= 0;
+  document.getElementById('cal-next').disabled = idx >= months.length - 1;
+  titleEl.textContent = bkkDayLabel(`${calendarMonth}-01`, { month: 'long', year: 'numeric' });
+
+  const total = daysInMonth(calendarMonth);
+  const firstWeekday = bkkWeekday(`${calendarMonth}-01`);
+  const dayNames = ['อา.', 'จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.'];
+
+  let html = '<div class="cal-grid">';
+  html += dayNames.map(d => `<div class="cal-head">${d}</div>`).join('');
+
+  // ช่องว่างก่อนวันที่ 1
+  for (let i = 0; i < firstWeekday; i++) html += '<div class="cal-cell empty"></div>';
+
+  let monthTotal = 0, rainDays = 0, dataDays = 0;
+
+  for (let day = 1; day <= total; day++) {
+    const date = `${calendarMonth}-${String(day).padStart(2, '0')}`;
+    const entry = data.get(date);
+    const mm = entry ? entry.mm : null;
+    const style = rainCellStyle(mm);
+    const isToday = date === todayStr;
+    const isForecast = entry?.kind === 'forecast';
+
+    if (entry) {
+      dataDays += 1;
+      monthTotal += mm;
+      if (mm >= 0.1) rainDays += 1;
+    }
+
+    const mmText = mm == null ? '·' : (mm < 0.1 ? '0' : mm.toFixed(mm < 10 ? 1 : 0));
+    const probText = isForecast && entry.prob != null ? `<div class="cal-prob">${entry.prob}%</div>` : '';
+    const title = entry
+      ? `${bkkDayLabel(date, { weekday: 'long', day: 'numeric', month: 'long' })} — ${mm.toFixed(1)} มม.${isForecast ? ' (พยากรณ์)' : ' (ตกจริง)'}`
+      : bkkDayLabel(date, { weekday: 'long', day: 'numeric', month: 'long' });
+
+    html += `
+      <div class="cal-cell${isForecast ? ' forecast' : ''}${isToday ? ' today' : ''}${entry ? '' : ' nodata'}"
+           style="background:${style.bg};color:${style.fg};border-color:${style.border};"
+           title="${esc(title)}">
+        <div class="cal-date">${day}</div>
+        <div class="cal-mm">${mmText}</div>
+        ${probText}
+      </div>
+    `;
+  }
+  html += '</div>';
+
+  // สรุปของเดือน
+  html += `
+    <div class="cal-summary">
+      <span>📊 ${bkkDayLabel(`${calendarMonth}-01`, { month: 'long' })}</span>
+      <span>ฝนรวม <b>${monthTotal.toFixed(1)} มม.</b></span>
+      <span>วันที่มีฝน <b>${rainDays}</b> / ${dataDays} วันที่มีข้อมูล</span>
+    </div>
+  `;
+
+  // คำอธิบายสี
+  html += '<div class="cal-legend"><span>ปริมาณ (มม.):</span>';
+  for (const l of CAL_LEGEND) {
+    const s = rainCellStyle(l.mm);
+    html += `<span class="cal-legend-item"><i style="background:${s.bg};border-color:${s.border}"></i>${l.label}</span>`;
+  }
+  html += '</div>';
+
+  container.innerHTML = html;
+}
+
+function stepCalendarMonth(delta) {
+  if (!calendarMonth) return;
+  const [y, m] = calendarMonth.split('-').map(Number);
+  const d = new Date(Date.UTC(y, m - 1 + delta, 1));
+  calendarMonth = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+  if (lastCalendarData) renderRainCalendar(lastCalendarData);
+}
+
+let lastCalendarData = null;
 
 // ============ Coconut Water Analysis (มะพร้าวเพิ่งปลูก 1-3 ปี) ============
 
@@ -848,6 +1838,7 @@ const COCONUT_WEEKLY_TARGET_MM = 50;  // เป้าหมายต่อสั
 const COCONUT_DAILY_TARGET_MM = 8;    // เป้าหมายต่อวัน (มม.) — เหมาะสม
 
 function classifyCoconutDay(mm) {
+  if (mm == null) return { icon: '⏳', label: 'ไม่มีข้อมูล', color: '#94a3b8' };
   if (mm >= 8)  return { icon: '✅', label: 'ดี',       color: '#15803d' };
   if (mm >= 4)  return { icon: '🟢', label: 'พอ',       color: '#65a30d' };
   if (mm >= 2)  return { icon: '🟡', label: 'น้อย',     color: '#ca8a04' };
@@ -880,29 +1871,51 @@ function coconutIrrigationAdvice(weeklyDeficitMm) {
   return { litersPerWeek, litersPerDay, freq };
 }
 
-function renderCoconutAnalysis(forecast, archive) {
+// รวมฝนรายวันจาก archive (ข้อมูลจริง มาก่อน) + forecast (พยากรณ์ / past_days) → map วันที่ → มม.
+function dailyRainMap(archive, forecast) {
+  const map = new Map();
+  const add = (times, sums) => {
+    (times || []).forEach((d, i) => {
+      const v = sums?.[i];
+      if (v != null && !map.has(d)) map.set(d, v);
+    });
+  };
+  add(archive?.daily?.time, archive?.daily?.precipitation_sum);
+  add(forecast?.daily?.time, forecast?.daily?.precipitation_sum);
+  return map;
+}
+
+function renderCoconutAnalysis(forecast, archive, ensembleDaily) {
   const container = document.getElementById('coconut-analysis');
   container.innerHTML = '';
 
-  // === สัปดาห์นี้ (forecast 7 วัน) ===
-  const forecastTimes = forecast.daily?.time || [];
-  const forecastPrecip = forecast.daily?.precipitation_sum || [];
+  // เลือกวันด้วย "วันที่" ไม่ใช่ index — forecast.daily มี past_days ปนอยู่ด้วยแล้ว
+  // การ slice ตามตำแหน่งจะหยิบวันย้อนหลังมาแสดงเป็นพยากรณ์
+  const todayStr = bkkDateStr();
+  const rainByDate = dailyRainMap(archive, forecast);
+
+  // === สัปดาห์นี้ (วันนี้ + อีก 6 วัน) ===
   const forecastDays = [];
-  for (let i = 0; i < Math.min(7, forecastTimes.length); i++) {
-    forecastDays.push({ date: forecastTimes[i], mm: forecastPrecip[i] ?? 0 });
+  for (let i = 0; i < 7; i++) {
+    const d = addDays(todayStr, i);
+    forecastDays.push({ date: d, mm: rainByDate.has(d) ? rainByDate.get(d) : null });
   }
 
-  // === สัปดาห์ที่แล้ว (archive 7 วันล่าสุด) ===
-  const archiveTimes = archive.daily?.time || [];
-  const archivePrecip = archive.daily?.precipitation_sum || [];
+  // === สัปดาห์ที่แล้ว (7 วันก่อนวันนี้) ===
   const archiveDays = [];
-  const startIdx = Math.max(0, archiveTimes.length - 7);
-  for (let i = startIdx; i < archiveTimes.length; i++) {
-    archiveDays.push({ date: archiveTimes[i], mm: archivePrecip[i] ?? 0 });
+  for (let i = 7; i >= 1; i--) {
+    const d = addDays(todayStr, -i);
+    archiveDays.push({ date: d, mm: rainByDate.has(d) ? rainByDate.get(d) : null });
   }
 
-  const forecastTotal = forecastDays.reduce((s, d) => s + d.mm, 0);
-  const archiveTotal = archiveDays.reduce((s, d) => s + d.mm, 0);
+  const sumMm = days => days.reduce((s, d) => s + (d.mm ?? 0), 0);
+  const archiveTotal = sumMm(archiveDays);
+  const archiveMissing = archiveDays.filter(d => d.mm == null).length;
+
+  // ใช้ค่ากลางของ ensemble เป็นตัวเลขหลัก และเก็บช่วงไว้เตือนกรณีฝนมาน้อยกว่าคาด
+  // (ยอดรวมรายสัปดาห์ต้องรวมรายสมาชิกก่อนหาควอนไทล์ ไม่ใช่เอา p50 รายวันมาบวกกัน)
+  const fRange = ensembleDaily ? ensembleRangeTotal(ensembleDaily, forecastDays.map(d => d.date)) : null;
+  const forecastTotal = fRange ? fRange.p50 : sumMm(forecastDays);
 
   const fStatus = classifyCoconutWeek(forecastTotal);
   const aStatus = classifyCoconutWeek(archiveTotal);
@@ -920,7 +1933,10 @@ function renderCoconutAnalysis(forecast, archive) {
     <div class="coconut-week" style="border-left-color:${fStatus.color};">
       <div class="coconut-week-title">📅 สัปดาห์นี้ (พยากรณ์)</div>
       <div class="coconut-week-status" style="color:${fStatus.color};">${fStatus.status}</div>
-      <div class="coconut-week-total">ฝนรวม <b>${forecastTotal.toFixed(1)} มม.</b> / เป้า ${COCONUT_WEEKLY_TARGET_MM} มม.</div>
+      <div class="coconut-week-total">
+        ฝนรวม <b>${forecastTotal.toFixed(1)} มม.</b> / เป้า ${COCONUT_WEEKLY_TARGET_MM} มม.
+        ${fRange ? `<br><span style="color:#718096;font-size:0.92em;">อาจอยู่ระหว่าง ${fRange.p10.toFixed(0)} – ${fRange.p90.toFixed(0)} มม. (จาก ${fRange.n} ชุด)</span>` : ''}
+      </div>
       <div class="coconut-week-desc">${fStatus.desc}</div>
   `;
   if (fAdvice) {
@@ -937,6 +1953,21 @@ function renderCoconutAnalysis(forecast, archive) {
       </div>
     `;
   }
+
+  // แผนสำรองกรณีฝนมาน้อยกว่าค่ากลาง — มะพร้าวเพิ่งปลูกรากตื้น เสียหายเร็วถ้าขาดน้ำ
+  // จึงควรรู้ล่วงหน้าว่า "ถ้าฝนไม่มาตามคาด" ต้องเตรียมน้ำเท่าไหร่
+  if (fRange) {
+    const dryDeficit = Math.max(0, COCONUT_WEEKLY_TARGET_MM - fRange.p25);
+    const dryAdvice = coconutIrrigationAdvice(dryDeficit);
+    if (dryAdvice && (!fAdvice || dryAdvice.litersPerWeek > fAdvice.litersPerWeek)) {
+      html += `
+        <div class="coconut-advice" style="color:#92400e;border-top-color:#fcd34d;">
+          🌤️ <b>ถ้าฝนมาน้อยกว่าคาด</b> (โอกาส 25%: ได้ฝนแค่ ${fRange.p25.toFixed(0)} มม.)
+          <br><span style="color:#4a5568;">เตรียมรดเพิ่มเป็น ${dryAdvice.litersPerWeek} ลิตร/ต้น/สัปดาห์</span>
+        </div>
+      `;
+    }
+  }
   html += `</div>`;
 
   // --- สัปดาห์ที่แล้ว (archive) ---
@@ -947,10 +1978,13 @@ function renderCoconutAnalysis(forecast, archive) {
       <div class="coconut-week-total">ฝนรวม <b>${archiveTotal.toFixed(1)} มม.</b> / เป้า ${COCONUT_WEEKLY_TARGET_MM} มม.</div>
       <div class="coconut-week-desc">${aStatus.desc}</div>
   `;
-  if (archiveTotal < COCONUT_WEEKLY_TARGET_MM) {
+  if (aDeficit > 0) {
+    // เดิมพิมพ์ archiveTotal (ปริมาณฝนที่ตกจริง) ในช่อง "ขาด" ซึ่งกลับความหมาย —
+    // ตัวเลขที่ถูกต้องคือส่วนต่างจากเป้า (aDeficit)
     html += `
       <div class="coconut-advice" style="color:#718096;">
-        📊 ย้อนหลัง: ขาด ${archiveTotal.toFixed(1)} มม. จากเป้า (ถ้ามะพร้าวยังไม่ฟื้นตัว ให้รดเสริม)
+        📊 ย้อนหลัง: ขาด ${aDeficit.toFixed(1)} มม. จากเป้า ${COCONUT_WEEKLY_TARGET_MM} มม. (ถ้ามะพร้าวยังไม่ฟื้นตัว ให้รดเสริม)
+        ${archiveMissing ? `<br><span style="color:#94a3b8;">⏳ ขาดข้อมูล ${archiveMissing} วัน — ยอดจริงอาจสูงกว่านี้</span>` : ''}
       </div>
     `;
   } else {
@@ -972,35 +2006,23 @@ function renderCoconutAnalysis(forecast, archive) {
     <div class="coconut-daily-grid">
   `;
 
-  // Past days (oldest first)
-  archiveDays.forEach(day => {
+  const dayCell = (day, cls) => {
     const status = classifyCoconutDay(day.mm);
-    const d = new Date(day.date + 'T00:00:00');
-    const dayLabel = d.toLocaleDateString('th-TH', { weekday: 'short', day: 'numeric', month: 'short' });
-    html += `
-      <div class="coconut-day past">
+    const dayLabel = bkkDayLabel(day.date, { weekday: 'short', day: 'numeric', month: 'short' });
+    const mmText = day.mm == null ? '—' : `${day.mm.toFixed(1)} มม.`;
+    return `
+      <div class="coconut-day ${cls}">
         <div class="coconut-day-label">${dayLabel}</div>
         <div class="coconut-day-icon">${status.icon}</div>
-        <div class="coconut-day-mm" style="color:${status.color};">${day.mm.toFixed(1)} มม.</div>
+        <div class="coconut-day-mm" style="color:${status.color};">${mmText}</div>
         <div class="coconut-day-status" style="color:${status.color};">${status.label}</div>
       </div>
     `;
-  });
+  };
 
-  // Future days
-  forecastDays.forEach(day => {
-    const status = classifyCoconutDay(day.mm);
-    const d = new Date(day.date + 'T00:00:00');
-    const dayLabel = d.toLocaleDateString('th-TH', { weekday: 'short', day: 'numeric', month: 'short' });
-    html += `
-      <div class="coconut-day future">
-        <div class="coconut-day-label">${dayLabel}</div>
-        <div class="coconut-day-icon">${status.icon}</div>
-        <div class="coconut-day-mm" style="color:${status.color};">${day.mm.toFixed(1)} มม.</div>
-        <div class="coconut-day-status" style="color:${status.color};">${status.label}</div>
-      </div>
-    `;
-  });
+  // Past days (oldest first) แล้วต่อด้วยวันนี้ + พยากรณ์
+  archiveDays.forEach(day => { html += dayCell(day, 'past'); });
+  forecastDays.forEach(day => { html += dayCell(day, 'future'); });
 
   html += '</div>';
 
@@ -1022,40 +2044,70 @@ function renderCoconutAnalysis(forecast, archive) {
 // ============ Render ============
 async function render() {
   const status = document.getElementById('refresh-status');
-  status.textContent = '🔄 กำลังโหลดข้อมูล...';
+  const token = ++renderToken;
+  status.textContent = `🔄 กำลังโหลดข้อมูล ${ACTIVE.name}...`;
 
   try {
-    const [rain, wind, archive, forecast] = await Promise.all([
+    // allSettled ไม่ใช่ all — เดิมถ้า Open-Meteo ฝั่งใดฝั่งหนึ่งล้ม ทั้งหน้าจะค้างที่ "กำลังโหลด..."
+    // ทั้งที่อีกแหล่งมีข้อมูลพร้อมแสดงแล้ว
+    const results = await Promise.allSettled([
       fetchLongdoRain(),
       fetchLongdoWind(),
       fetchOpenMeteoArchive(),
       fetchOpenMeteoForecast(),
+      fetchOpenMeteoModels(),
+      fetchOpenMeteoEnsemble(),
     ]);
+    // ผู้ใช้สลับพื้นที่ระหว่างที่ยังโหลดไม่เสร็จ → ผลลัพธ์ชุดนี้เป็นของพื้นที่เก่าแล้ว ทิ้งไป
+    if (token !== renderToken) return;
+
+    const [rain, wind, archive, forecast, multi, ensemble] =
+      results.map(r => (r.status === 'fulfilled' ? r.value : null));
+
+    const failures = [];
+    const noteFail = (i, name) => {
+      if (results[i].status === 'rejected') failures.push(`${name} (${results[i].reason.message})`);
+    };
+    noteFail(2, 'archive');
+    noteFail(3, 'forecast');
+    noteFail(4, 'multi-model');
+    noteFail(5, 'ensemble');
+    if (failures.length) console.warn('⚠️ Open-Meteo failed:', failures.join(', '));
+
+    const ensembleDaily = ensembleDailyTotals(ensemble);
+    const agreement = modelAgreement(multi);
 
     // Header
     document.getElementById('generated-at').textContent = '⏱️ อัปเดต: ' + new Date().toLocaleTimeString('th-TH');
 
-    // === Current rain card (Open-Meteo PRIMARY + Longdo SECONDARY) ===
-    const omCur = forecast.current || {};
+    // === Current rain card (Longdo เรดาร์ = PRIMARY, Open-Meteo = SECONDARY) ===
+    // Longdo มาจากเรดาร์ = การ "สังเกตการณ์" จริง ส่วน current ของ Open-Meteo เป็นผลลัพธ์
+    // ของโมเดล ไม่ใช่การวัด — สำหรับคำถาม "ตอนนี้ฝนตกไหม" เรดาร์เชื่อถือได้มากกว่า
+    const omCur = forecast?.current || {};
     const hasOmCurrent = omCur.weather_code !== undefined && omCur.weather_code !== null;
     const { status: rainStatus, desc: rainDesc } = getCurrentRainStatus(omCur);
-    document.getElementById('rain-now').textContent = rainStatus;
+    const longdo = rain?.rain;
+    const longdoRaining = longdo ? longdo.intensity > 0 : null;
+    const omRaining = hasOmCurrent ? isObservedRaining(omCur) : null;
+
     let rainDescFull = '';
-    if (hasOmCurrent) {
-      rainDescFull = `🌐 Open-Meteo: ${rainDesc}`;
-    } else {
-      rainDescFull = `⚠️ Open-Meteo current ไม่มีข้อมูล (weather_code=${omCur.weather_code})`;
-    }
-    if (rain && rain.rain) {
-      rainDescFull += ` • Longdo: ${rain.rain.description} (${rain.rain.intensity}/5)`;
-      // เตือนถ้า 2 แหล่งไม่ตรงกัน (Open-Meteo บอกฝนตก แต่ Longdo บอกไม่ตก หรือกลับกัน)
-      const omRaining = (omCur.precipitation ?? 0) >= 0.1 || ((omCur.weather_code ?? -1) >= 51);
-      const longdoRaining = rain.rain.intensity > 0;
-      if (omRaining !== longdoRaining) {
-        rainDescFull += ` ⚠️ ข้อมูลไม่ตรงกัน`;
+    if (longdo) {
+      document.getElementById('rain-now').textContent =
+        longdoRaining ? `🌧️ ${longdo.description}` : '☀️ ไม่มีฝน';
+      rainDescFull = `📡 เรดาร์ Longdo: ${longdo.description} (${longdo.intensity}/5)`;
+      if (hasOmCurrent) {
+        rainDescFull += ` • 🌐 โมเดล: ${rainDesc}`;
+        // เรดาร์กับโมเดลไม่ตรงกัน = สัญญาณว่าอย่าเพิ่งเชื่อฝั่งใดฝั่งหนึ่งเต็มร้อย
+        if (omRaining !== longdoRaining) rainDescFull += ' ⚠️ เรดาร์กับโมเดลไม่ตรงกัน';
+      } else {
+        rainDescFull += ' • 🌐 โมเดล: ⚠️ ไม่ตอบสนอง';
       }
+    } else if (hasOmCurrent) {
+      document.getElementById('rain-now').textContent = rainStatus;
+      rainDescFull = `⚠️ เรดาร์ไม่ตอบสนอง — ใช้โมเดลแทน: ${rainDesc}`;
     } else {
-      rainDescFull += ' • Longdo: ⚠️ ไม่ตอบสนอง';
+      document.getElementById('rain-now').textContent = '-';
+      rainDescFull = '⚠️ ไม่มีข้อมูลจากทั้ง 2 แหล่ง';
     }
     document.getElementById('rain-desc').textContent = rainDescFull;
 
@@ -1069,55 +2121,120 @@ async function render() {
       document.getElementById('wind-desc').textContent = '⚠️ Longdo wind ไม่ตอบสนอง';
     }
 
-    // Temp card
+    // Temp card — ต้องเคลียร์ข้อความ "กำลังโหลด..." ด้วยเมื่อไม่มีข้อมูล ไม่งั้นค้างอยู่ตลอด
     if (omCur.temperature_2m != null) {
       document.getElementById('temp-now').textContent = `${omCur.temperature_2m.toFixed(1)}°C`;
-      document.getElementById('temp-desc').textContent = `ความชื้น ${omCur.relative_humidity_2m || '-'}%`;
+      document.getElementById('temp-desc').textContent = `ความชื้น ${omCur.relative_humidity_2m ?? '-'}%`;
+    } else {
+      document.getElementById('temp-now').textContent = '-';
+      document.getElementById('temp-desc').textContent = '⚠️ ไม่มีข้อมูลอุณหภูมิ';
     }
 
-    // Rain week card
-    const last7 = (archive.daily.precipitation_sum || []).slice(-7).reduce((a, b) => a + (b || 0), 0);
-    document.getElementById('rain-week').textContent = `${last7.toFixed(1)} มม.`;
+    // Rain week card — นับ 7 วันที่ผ่านมาตามวันที่จริง แทนการ slice(-7) ตามตำแหน่ง
+    // (ถ้า archive ยังไม่อัปเดต slice(-7) จะไปหยิบวันที่เก่ากว่ามาแทน โดยยังพาดหัวว่า "7 วันล่าสุด")
+    const todayStr = bkkDateStr();
+    const rainByDate = dailyRainMap(archive, forecast);
+    let last7 = 0;
+    let last7Missing = 0;
+    for (let i = 7; i >= 1; i--) {
+      const d = addDays(todayStr, -i);
+      if (rainByDate.has(d)) last7 += rainByDate.get(d);
+      else last7Missing += 1;
+    }
+    document.getElementById('rain-week').textContent =
+      last7Missing === 7 ? '-' : `${last7.toFixed(1)} มม.`;
 
-    // Rain events (today + tomorrow) — pass current observation for accurate "กำลังตก" badge
-    renderRainEvents(forecast, omCur);
+    if (forecast) {
+      // Rain events (today + tomorrow) — pass current observation for accurate "กำลังตก" badge
+      renderRainEvents(forecast, omCur);
+      // Forecast grid
+      renderForecastGrid(forecast, ensembleDaily);
+    } else {
+      panelMessage('rain-events', 'โหลดพยากรณ์ไม่สำเร็จ');
+      panelMessage('forecast-grid', 'โหลดพยากรณ์ไม่สำเร็จ');
+    }
 
-    // Rain history (past 7 days)
-    renderRainHistory(archive);
+    // Forecast confidence (ensemble + multi-model agreement)
+    if (ensembleDaily.size || agreement.size) {
+      renderConfidence(ensembleDaily, agreement);
+    } else {
+      panelMessage('confidence', 'โหลด ensemble / multi-model ไม่สำเร็จ');
+    }
 
-    // Coconut water analysis
-    renderCoconutAnalysis(forecast, archive);
-
-    // Chart
-    renderChart(archive, forecast);
-
-    // Forecast grid
-    renderForecastGrid(forecast);
+    if (archive || forecast) {
+      // Rain history (past 7 days)
+      renderRainHistory(archive, forecast);
+      // Coconut water analysis — เฉพาะพื้นที่ที่ตั้งไว้ว่าเป็นแปลงมะพร้าว
+      if (ACTIVE.coconut) renderCoconutAnalysis(forecast, archive, ensembleDaily);
+      // Rain calendar
+      lastCalendarData = rainCalendarData(archive, forecast, ensembleDaily);
+      renderRainCalendar(lastCalendarData);
+      // Chart
+      renderChart(archive, forecast);
+    } else {
+      panelMessage('rain-history', 'โหลดข้อมูลย้อนหลังไม่สำเร็จ');
+      panelMessage('coconut-analysis', 'โหลดข้อมูลไม่สำเร็จ');
+      panelMessage('rain-calendar', 'โหลดข้อมูลไม่สำเร็จ');
+    }
 
     // Radar section removed - Longdo free tier doesn't provide tile endpoint
     // (See https://weather.longdo.com/docs for paid tier access)
 
-    status.textContent = '🟢 อัปเดตล่าสุด: ' + new Date().toLocaleTimeString('th-TH');
-    console.log('✅ All data loaded at', new Date().toISOString());
+    if (failures.length) {
+      status.innerHTML = `<span style="color:#b45309">⚠️ บางแหล่งข้อมูลล้มเหลว: ${esc(failures.join(', '))} — แสดงเท่าที่มี (${new Date().toLocaleTimeString('th-TH')})</span>`;
+    } else {
+      status.textContent = '🟢 อัปเดตล่าสุด: ' + new Date().toLocaleTimeString('th-TH');
+      console.log('✅ All data loaded at', new Date().toISOString());
+    }
   } catch (e) {
+    if (token !== renderToken) return;
     console.error('❌ Render failed:', e);
-    status.innerHTML = '<span style="color:#dc2626">⚠️ โหลดข้อมูลไม่สำเร็จ: ' + e.message + ' (จะลองใหม่ใน 5 นาที)</span>';
+    status.innerHTML = '<span style="color:#dc2626">⚠️ โหลดข้อมูลไม่สำเร็จ: ' + esc(e.message) + ' (จะลองใหม่ใน 5 นาที)</span>';
+  }
+}
+
+function panelMessage(id, msg) {
+  const el = document.getElementById(id);
+  if (el) {
+    el.innerHTML = `<div class="rain-day-empty" style="background:#fef2f2;border-color:#fecaca;color:#b91c1c;">⚠️ ${msg}</div>`;
   }
 }
 
 function renderChart(archive, forecast) {
-  const archiveLabels = archive.daily.time.map(d => {
-    const date = new Date(d);
-    return `${date.getDate()} ${['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'][date.getMonth()]}`;
+  // สร้างแกนเวลาจาก "วันที่จริง" แล้ว map ค่าลงไป — เดิมต่อ array ของสองแหล่งเข้าด้วยกัน
+  // ตามตำแหน่ง ถ้า archive ขาดวันไป แท่งพยากรณ์จะเลื่อนไปตรงกับวันที่ผิด
+  const todayStr = bkkDateStr();
+  const minDate = addDays(todayStr, -14);
+
+  const pastMap = new Map();
+  const futureMap = new Map();
+  const probMap = new Map();
+
+  const aTimes = archive?.daily?.time || [];
+  const aSums = archive?.daily?.precipitation_sum || [];
+  aTimes.forEach((d, i) => {
+    if (aSums[i] != null && d < todayStr && d >= minDate) pastMap.set(d, aSums[i]);
   });
-  const forecastLabels = forecast.daily.time.map(d => {
-    const date = new Date(d);
-    return `${date.getDate()} ${['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'][date.getMonth()]}`;
+
+  const fTimes = forecast?.daily?.time || [];
+  const fSums = forecast?.daily?.precipitation_sum || [];
+  const fProb = forecast?.daily?.precipitation_probability_max || [];
+  fTimes.forEach((d, i) => {
+    if (d < todayStr) {
+      // เติมเฉพาะวันที่ archive ยังไม่มี (archive = ข้อมูลจริง ให้ความสำคัญก่อน)
+      if (d >= minDate && !pastMap.has(d) && fSums[i] != null) pastMap.set(d, fSums[i]);
+    } else {
+      if (fSums[i] != null) futureMap.set(d, fSums[i]);
+      if (fProb[i] != null) probMap.set(d, fProb[i]);
+    }
   });
-  const allLabels = [...archiveLabels, ...forecastLabels];
-  const allArchive = [...(archive.daily.precipitation_sum || [])];
-  const allForecast = [...Array(archiveLabels.length).fill(null), ...(forecast.daily.precipitation_sum || [])];
-  const allProb = [...Array(archiveLabels.length).fill(null), ...(forecast.daily.precipitation_probability_max || [])];
+
+  // "YYYY-MM-DD" เรียงแบบ string = เรียงตามเวลา
+  const allDates = [...new Set([...pastMap.keys(), ...futureMap.keys()])].sort();
+  const allLabels = allDates.map(d => bkkDayLabel(d, { day: 'numeric', month: 'short' }));
+  const allArchive = allDates.map(d => (pastMap.has(d) ? pastMap.get(d) : null));
+  const allForecast = allDates.map(d => (futureMap.has(d) ? futureMap.get(d) : null));
+  const allProb = allDates.map(d => (probMap.has(d) ? probMap.get(d) : null));
 
   const ctx = document.getElementById('rainChart').getContext('2d');
   if (chartObj) chartObj.destroy();
@@ -1170,39 +2287,365 @@ function renderChart(archive, forecast) {
   });
 }
 
-function renderForecastGrid(forecast) {
+function renderForecastGrid(forecast, ensembleDaily) {
   const grid = document.getElementById('forecast-grid');
   grid.innerHTML = '';
-  const days = forecast.daily.time;
-  const dayNames = ['อา.', 'จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.'];
+  const days = forecast.daily?.time || [];
+  const todayStr = bkkDateStr();
 
   for (let i = 0; i < days.length; i++) {
-    const date = new Date(days[i]);
-    const rain = forecast.daily.precipitation_sum[i] || 0;
-    const prob = forecast.daily.precipitation_probability_max[i] || 0;
-    const tmax = forecast.daily.temperature_2m_max[i];
-    const tmin = forecast.daily.temperature_2m_min[i];
-    const dayName = dayNames[date.getDay()];
-    const dateLabel = `${date.getDate()}/${date.getMonth() + 1}`;
+    // forecast.daily มี past_days ปนมาด้วย — panel นี้แสดงเฉพาะวันนี้เป็นต้นไป
+    if (days[i] < todayStr) continue;
+
+    const tmax = forecast.daily.temperature_2m_max?.[i];
+    const tmin = forecast.daily.temperature_2m_min?.[i];
+    // เดิม new Date("2026-08-16") ถูกตีความเป็นเที่ยงคืน UTC แล้วอ่านวันด้วย getDay()
+    // ตาม timezone ของเครื่อง → ชื่อวันเพี้ยนไป 1 วันสำหรับผู้ใช้ฝั่งตะวันตกของ UTC
+    const dayName = bkkDayLabel(days[i], { weekday: 'short' });
+    const dateLabel = bkkDayLabel(days[i], { day: 'numeric', month: 'numeric' });
+
+    // ใช้ ensemble เป็นหลัก (ความน่าจะเป็นที่คำนวณจากสมาชิกจริง) แล้วค่อย fallback
+    // ไปที่ค่า deterministic ของ API หลัก
+    const members = ensembleDaily?.get(days[i]);
+    const stats = members ? ensembleStats(members) : null;
+    const prob = stats ? stats.probs[0.1] : (forecast.daily.precipitation_probability_max?.[i] || 0);
+    const rain = stats ? stats.p50 : (forecast.daily.precipitation_sum?.[i] || 0);
+
     let icon = '☀️';
     if (rain > 5 || prob > 80) icon = '⛈️';
     else if (rain > 2 || prob > 60) icon = '🌧️';
     else if (rain > 0.5 || prob > 40) icon = '🌦️';
     else if (prob > 20) icon = '⛅';
 
+    // เกิน 7 วันความแม่นตกลงมาก — หรี่การ์ดลงและไม่แสดงตัวเลขปริมาณ
+    // เพื่อไม่ให้อ่านเป็นค่าที่เชื่อถือได้
+    const dayIndex = Math.round((bkkToEpoch(days[i]) - bkkToEpoch(todayStr)) / 86400000);
+    const lowConf = dayIndex >= DETAILED_FORECAST_DAYS;
+
     const div = document.createElement('div');
-    div.className = 'forecast-day';
+    div.className = 'forecast-day' + (lowConf ? ' low-conf' : '');
     div.innerHTML = `
       <div class="date">${dayName}</div>
       <div style="font-size:0.75em;color:#718096;">${dateLabel}</div>
       <div class="icon">${icon}</div>
-      <div class="rain">${rain.toFixed(1)} มม.</div>
-      <div class="prob">${prob}%</div>
+      <div class="prob-main">${prob}%</div>
       <div class="prob-bar"><div class="prob-fill" style="width:${prob}%"></div></div>
+      ${lowConf
+        ? '<div class="rain-range">ความแม่นต่ำ</div>'
+        : `<div class="rain-range">${stats
+              ? `${stats.p10.toFixed(1)}–${stats.p90.toFixed(1)} มม.`
+              : `${rain.toFixed(1)} มม.`}</div>`}
       <div style="font-size:0.75em;color:#4a5568;margin-top:4px;">${tmin?.toFixed(0)}-${tmax?.toFixed(0)}°C</div>
     `;
     grid.appendChild(div);
   }
+}
+
+// ============ Coordinate parsing ============
+// รับพิกัดที่วางมาได้หลายรูปแบบ เพราะแต่ละแอปคัดลอกมาไม่เหมือนกัน:
+//   "12.2211831, 99.8770225"      (Google Maps)
+//   "12.2211831:99.8770225"       (คั่นด้วย :)
+//   "12.2211831 99.8770225"       (คั่นด้วยช่องว่าง)
+//   "12.2211831N, 99.8770225E"    (มีตัวอักษรทิศ)
+//   "12°13'16.3\"N 99°52'37.3\"E"  (องศา-ลิปดา-ฟิลิปดา)
+function dmsToDecimal(deg, min, sec, hemi) {
+  let v = Math.abs(deg) + (min || 0) / 60 + (sec || 0) / 3600;
+  if (/[SW]/i.test(hemi || '') || deg < 0) v = -v;
+  return v;
+}
+
+function parseCoordPair(input) {
+  const s = String(input || '').trim().replace(/\s+/g, ' ');
+  if (!s) return null;
+
+  let lat = null, lon = null;
+
+  // แบบองศา-ลิปดา-ฟิลิปดา — ต้องเจอครบสองชุด
+  const dmsRe = /(-?\d+(?:\.\d+)?)\s*°\s*(?:(\d+(?:\.\d+)?)\s*['′’])?\s*(?:(\d+(?:\.\d+)?)\s*["″”])?\s*([NSEW])?/gi;
+  const dms = [...s.matchAll(dmsRe)].filter(m => m[0].includes('°'));
+  if (dms.length === 2) {
+    const vals = dms.map(m => ({
+      value: dmsToDecimal(parseFloat(m[1]), parseFloat(m[2] || 0), parseFloat(m[3] || 0), m[4]),
+      hemi: (m[4] || '').toUpperCase(),
+    }));
+    // ถ้าระบุทิศมา ให้ทิศเป็นตัวตัดสินว่าตัวไหนคือ lat/lon
+    const latPart = vals.find(v => v.hemi === 'N' || v.hemi === 'S');
+    const lonPart = vals.find(v => v.hemi === 'E' || v.hemi === 'W');
+    if (latPart && lonPart) { lat = latPart.value; lon = lonPart.value; }
+    else { lat = vals[0].value; lon = vals[1].value; }
+  } else {
+    // แบบทศนิยม — คั่นด้วย , ; : หรือช่องว่าง
+    const dec = /^(-?\d+(?:\.\d+)?)\s*°?\s*([NS])?\s*(?:[,;:]|\s)\s*(-?\d+(?:\.\d+)?)\s*°?\s*([EW])?$/i.exec(s);
+    if (!dec) return null;
+    lat = parseFloat(dec[1]);
+    lon = parseFloat(dec[3]);
+    if (/S/i.test(dec[2] || '')) lat = -Math.abs(lat);
+    if (/W/i.test(dec[4] || '')) lon = -Math.abs(lon);
+  }
+
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+
+  // ละติจูดเกิน 90 เป็นไปไม่ได้ → ผู้ใช้วางสลับ lon,lat มา สลับกลับให้
+  if (Math.abs(lat) > 90 && Math.abs(lon) <= 90) {
+    [lat, lon] = [lon, lat];
+  }
+  if (Math.abs(lat) > 90 || Math.abs(lon) > 180) return null;
+
+  return { lat, lon };
+}
+
+// สะท้อนค่าที่อ่านได้ตามที่ผู้ใช้ใส่มา (ตัดศูนย์ท้ายทิ้ง) ไม่ปัดให้ดูเหมือนถูกตัดทอน
+function formatCoord(lat, lon) {
+  const f = v => String(Number(Math.abs(v).toFixed(7)));
+  return `${f(lat)}°${lat >= 0 ? 'N' : 'S'}, ${f(lon)}°${lon >= 0 ? 'E' : 'W'}`;
+}
+
+// ============ Location UI ============
+// ชื่อพื้นที่มาจากผู้ใช้และจาก geocoding API (ข้อมูลภายนอก) — ต้อง escape ก่อนใส่ innerHTML
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, c =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+const $loc = {
+  select: () => document.getElementById('location-select'),
+  form: () => document.getElementById('location-form'),
+  results: () => document.getElementById('loc-results'),
+  error: () => document.getElementById('loc-error'),
+  search: () => document.getElementById('loc-search'),
+  name: () => document.getElementById('loc-name'),
+  coord: () => document.getElementById('loc-coord'),
+  preview: () => document.getElementById('loc-coord-preview'),
+  coconut: () => document.getElementById('loc-coconut'),
+};
+
+function renderLocationSelect() {
+  const sel = $loc.select();
+  sel.innerHTML = LOCATIONS.map(l =>
+    `<option value="${esc(l.id)}"${l.id === ACTIVE.id ? ' selected' : ''}>${esc(l.name)}${l.detail ? ' — ' + esc(l.detail) : ''}</option>`
+  ).join('');
+  // พื้นที่ตั้งต้นลบไม่ได้ (ต้องเหลืออย่างน้อยหนึ่งอัน)
+  document.getElementById('location-del').disabled = !!ACTIVE.builtin;
+}
+
+function renderLocationHeader() {
+  document.getElementById('place-icon').textContent = ACTIVE.coconut ? '🌴' : '📍';
+  document.getElementById('place-name').textContent = ACTIVE.name;
+  document.title = `${ACTIVE.coconut ? '🌴' : '📍'} Weather Dashboard - ${ACTIVE.name}`;
+  const ns = ACTIVE.lat >= 0 ? 'N' : 'S';
+  const ew = ACTIVE.lon >= 0 ? 'E' : 'W';
+  document.getElementById('place-coords').textContent =
+    `📍 ${Math.abs(ACTIVE.lat).toFixed(4)}°${ns}, ${Math.abs(ACTIVE.lon).toFixed(4)}°${ew}` +
+    (ACTIVE.detail ? ` · ${ACTIVE.detail}` : '');
+
+  // panel วิเคราะห์มะพร้าวไม่เกี่ยวกับพื้นที่ที่ไม่ใช่แปลง — ซ่อนไปเลย
+  const coconutPanel = document.getElementById('coconut-analysis').closest('.panel');
+  if (coconutPanel) coconutPanel.hidden = !ACTIVE.coconut;
+}
+
+// เก็บพื้นที่ที่เลือกไว้ใน URL ด้วย เพื่อให้ refresh แล้วยังอยู่ที่เดิม และแชร์ลิงก์ได้
+function syncUrl() {
+  const p = new URLSearchParams();
+  p.set('lat', String(ACTIVE.lat));
+  p.set('lon', String(ACTIVE.lon));
+  p.set('name', ACTIVE.name);
+  if (!ACTIVE.coconut) p.set('coconut', '0');
+  try {
+    history.replaceState(null, '', `${window.location.pathname}?${p}`);
+  } catch (e) {
+    // file:// ไม่รองรับ replaceState — ไม่ใช่เรื่องคอขาดบาดตาย
+  }
+}
+
+function setActiveLocation(loc) {
+  ACTIVE = loc;
+  safeLS(() => localStorage.setItem(LS_ACTIVE, loc.id));
+  renderLocationSelect();
+  renderLocationHeader();
+  syncUrl();
+  resetPanelsToLoading();
+  render();
+}
+
+// ล้างค่าของพื้นที่เดิมออกก่อน ไม่ให้ค้างบนจอระหว่างโหลดพื้นที่ใหม่
+function resetPanelsToLoading() {
+  for (const id of ['rain-events', 'rain-history', 'coconut-analysis', 'confidence', 'forecast-grid', 'rain-calendar']) {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = '<div class="status-loading">กำลังโหลด...</div>';
+  }
+  // ข้อมูลปฏิทินเป็นของพื้นที่เดิม ต้องทิ้ง ไม่งั้นกดเปลี่ยนเดือนแล้วได้ข้อมูลผิดที่
+  lastCalendarData = null;
+  for (const id of ['rain-now', 'wind-now', 'temp-now', 'rain-week']) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = '-';
+  }
+  for (const [id, txt] of [['rain-desc', 'กำลังโหลด...'], ['wind-desc', 'กำลังโหลด...'], ['temp-desc', 'กำลังโหลด...']]) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = txt;
+  }
+  if (chartObj) { chartObj.destroy(); chartObj = null; }
+}
+
+function showLocError(msg) {
+  $loc.error().textContent = msg || '';
+}
+
+function openLocationForm() {
+  $loc.form().hidden = false;
+  $loc.results().innerHTML = '';
+  showLocError('');
+  $loc.search().value = '';
+  $loc.name().value = '';
+  $loc.coord().value = '';
+  $loc.preview().textContent = '';
+  $loc.coconut().checked = true;
+  $loc.search().focus();
+}
+
+// แสดงผลการอ่านพิกัดทันทีที่พิมพ์/วาง เพื่อให้เห็นว่าระบบตีความถูกไหมก่อนกดบันทึก
+function updateCoordPreview() {
+  const raw = $loc.coord().value.trim();
+  const el = $loc.preview();
+  if (!raw) { el.textContent = ''; el.className = 'loc-preview'; return; }
+  const parsed = parseCoordPair(raw);
+  if (parsed) {
+    el.textContent = `✓ อ่านได้: ${formatCoord(parsed.lat, parsed.lon)}`;
+    el.className = 'loc-preview ok';
+  } else {
+    el.textContent = '✗ อ่านพิกัดไม่ออก — ตรวจรูปแบบตามตัวอย่างด้านบน';
+    el.className = 'loc-preview bad';
+  }
+}
+
+function closeLocationForm() {
+  $loc.form().hidden = true;
+  showLocError('');
+}
+
+function addLocation(loc) {
+  const normalized = normalizeLocation(loc);
+  // มีพิกัดนี้อยู่แล้ว (เช่นเป็น preset) → สลับไปที่เดิม ไม่สร้างรายการซ้ำ
+  const existing = LOCATIONS.find(l => l.id === normalized.id || coordKey(l) === coordKey(normalized));
+  if (existing) {
+    setActiveLocation(existing);
+    closeLocationForm();
+    return;
+  }
+  LOCATIONS = [...LOCATIONS, normalized];
+  persistLocations(LOCATIONS);
+  closeLocationForm();
+  setActiveLocation(normalized);
+}
+
+async function doGeocodeSearch() {
+  const q = $loc.search().value.trim();
+  if (!q) { showLocError('พิมพ์ชื่อสถานที่ก่อน'); return; }
+  const btn = document.getElementById('loc-search-btn');
+  btn.disabled = true;
+  btn.textContent = 'กำลังค้นหา...';
+  showLocError('');
+  $loc.results().innerHTML = '';
+  try {
+    const results = await geocodeSearch(q);
+    if (!results.length) {
+      showLocError('ไม่พบสถานที่นี้ — ลองคำอื่น หรือกรอกพิกัดเองด้านล่าง');
+      return;
+    }
+    $loc.results().innerHTML = results.map((r, i) => {
+      const detail = [r.admin2, r.admin1, r.country].filter(Boolean).join(', ');
+      return `<button type="button" class="loc-result" data-idx="${i}">
+        <b>${esc(r.name)}</b>
+        <small>${esc(detail)} · ${r.latitude.toFixed(4)}, ${r.longitude.toFixed(4)}</small>
+      </button>`;
+    }).join('');
+    $loc.results().querySelectorAll('.loc-result').forEach(el => {
+      el.onclick = () => {
+        const r = results[Number(el.dataset.idx)];
+        addLocation({
+          id: `${r.latitude.toFixed(4)},${r.longitude.toFixed(4)}`,
+          name: r.name,
+          detail: [r.admin2, r.admin1].filter(Boolean).join(', '),
+          lat: r.latitude,
+          lon: r.longitude,
+          coconut: $loc.coconut().checked,
+        });
+      };
+    });
+  } catch (e) {
+    showLocError(`ค้นหาไม่สำเร็จ: ${e.message} — กรอกพิกัดเองด้านล่างได้`);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'ค้นหา';
+  }
+}
+
+function saveManualLocation() {
+  const rawCoord = $loc.coord().value.trim();
+  if (!rawCoord) { showLocError('วางพิกัดก่อน เช่น 12.2211831, 99.8770225'); return; }
+
+  const parsed = parseCoordPair(rawCoord);
+  if (!parsed) {
+    showLocError('อ่านพิกัดไม่ออก — ต้องเป็นละติจูด แล้วตามด้วยลองจิจูด เช่น 12.2211831, 99.8770225');
+    return;
+  }
+  const { lat, lon } = parsed;
+
+  // ไม่บังคับตั้งชื่อ — ถ้าไม่ใส่ ใช้พิกัดเป็นชื่อไปก่อน
+  const name = $loc.name().value.trim() || `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
+
+  addLocation({
+    // id ใช้ทศนิยม 6 ตำแหน่ง (~0.1 ม.) เพื่อไม่ให้แปลงที่อยู่ใกล้กันชนกันเป็นอันเดียว
+    id: `${lat.toFixed(6)},${lon.toFixed(6)}`,
+    name, lat, lon,
+    coconut: $loc.coconut().checked,
+  });
+}
+
+function deleteActiveLocation() {
+  if (ACTIVE.builtin) return;
+  if (!window.confirm(`ลบพื้นที่ "${ACTIVE.name}" ออกจากรายการ?`)) return;
+  LOCATIONS = LOCATIONS.filter(l => l.id !== ACTIVE.id);
+  persistLocations(LOCATIONS);
+  setActiveLocation(LOCATIONS[0] || DEFAULT_LOCATION);
+}
+
+async function shareActiveLocation() {
+  syncUrl();
+  const url = window.location.href;
+  const btn = document.getElementById('location-share');
+  const original = btn.textContent;
+  try {
+    await navigator.clipboard.writeText(url);
+    btn.textContent = '✅ คัดลอกแล้ว';
+  } catch (e) {
+    // clipboard API ต้องการ https + user gesture — ถ้าไม่ได้ก็ให้ผู้ใช้คัดลอกจากแถบ URL เอง
+    btn.textContent = '⚠️ คัดลอกไม่ได้ — ใช้ URL บนแถบที่อยู่';
+  }
+  setTimeout(() => { btn.textContent = original; }, 2500);
+}
+
+function initLocationUI() {
+  renderLocationSelect();
+  renderLocationHeader();
+  syncUrl();
+
+  $loc.select().onchange = e => {
+    const loc = LOCATIONS.find(l => l.id === e.target.value);
+    if (loc) setActiveLocation(loc);
+  };
+  document.getElementById('location-add').onclick = openLocationForm;
+  document.getElementById('location-del').onclick = deleteActiveLocation;
+  document.getElementById('location-share').onclick = shareActiveLocation;
+  document.getElementById('loc-search-btn').onclick = doGeocodeSearch;
+  document.getElementById('loc-save').onclick = saveManualLocation;
+  document.getElementById('loc-cancel').onclick = closeLocationForm;
+  $loc.search().onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); doGeocodeSearch(); } };
+  [$loc.name(), $loc.coord()].forEach(el => {
+    el.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); saveManualLocation(); } };
+  });
+  $loc.coord().oninput = updateCoordPreview;
+  // วางด้วยเมาส์ไม่ยิง input ทันทีในบางเบราว์เซอร์ — รอให้ค่าเข้า field ก่อน
+  $loc.coord().onpaste = () => setTimeout(updateCoordPreview, 0);
 }
 
 // ============ Boot ============
@@ -1213,6 +2656,10 @@ document.getElementById('refresh-now').onclick = () => {
   });
 };
 
+document.getElementById('cal-prev').onclick = () => stepCalendarMonth(-1);
+document.getElementById('cal-next').onclick = () => stepCalendarMonth(1);
+
+initLocationUI();
 render();
 refreshTimer = setInterval(() => {
   console.log('⏰ Auto-refresh at', new Date().toISOString());
