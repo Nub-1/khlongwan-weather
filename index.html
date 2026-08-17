@@ -1061,6 +1061,26 @@ async function fetchLongdoWind() {
 }
 
 // ============ Open-Meteo API ============
+// Open-Meteo ตอบ 400 ถ้ามีพารามิเตอร์ที่ไม่รู้จักหรือชื่อโมเดลที่ไม่มีอยู่จริง
+// พารามิเตอร์ขั้นสูงที่ใช้อยู่ (cell_selection, models=...) ทำให้ผลลัพธ์ดีขึ้นก็จริง
+// แต่ถ้าตัวใดไม่รองรับ ทั้ง panel จะล่มทั้งที่ข้อมูลพื้นฐานยังขอได้ปกติ
+// จึงไล่ลองจากชุดที่ดีที่สุดไปหาชุดพื้นฐานที่สุด
+async function fetchOpenMeteo(label, urls) {
+  let lastErr = null;
+  for (let i = 0; i < urls.length; i++) {
+    try {
+      const r = await fetch(urls[i]);
+      if (!r.ok) throw new Error(`${label}: HTTP ${r.status}`);
+      const data = await r.json();
+      if (i > 0) console.warn(`⚠️ ${label}: ชุดพารามิเตอร์เต็มใช้ไม่ได้ ถอยไปใช้ชุดที่ ${i + 1}`);
+      return data;
+    } catch (e) {
+      lastErr = e;
+    }
+  }
+  throw lastErr || new Error(`${label}: ขอข้อมูลไม่สำเร็จ`);
+}
+
 async function fetchOpenMeteoArchive() {
   // คำนวณช่วงวันที่ตามวันที่ในไทย — เดิมใช้ toISOString() ซึ่งเป็น UTC ทำให้ช่วง 00:00-07:00
   // ตามเวลาไทย ได้ช่วงวันที่คลาดไป 1 วัน
@@ -1068,38 +1088,50 @@ async function fetchOpenMeteoArchive() {
   const end = addDays(today, -1);
   const start = addDays(today, -14); // ย้อนหลัง 14 วัน (สำหรับ chart)
   // era5_land = ~9 กม. (ERA5 ปกติ ~31 กม.) ละเอียดกว่ามากสำหรับจุดชายฝั่งที่มีเขาหินปูน
-  const url = `https://archive-api.open-meteo.com/v1/archive?latitude=${ACTIVE.lat}&longitude=${ACTIVE.lon}&start_date=${start}&end_date=${end}&daily=precipitation_sum,precipitation_hours&hourly=precipitation&timezone=Asia%2FBangkok&models=era5_land&cell_selection=${CELL}`;
-  const r = await fetch(url);
-  if (!r.ok) throw new Error(`Open-Meteo archive: HTTP ${r.status}`);
-  return await r.json();
+  const base = `https://archive-api.open-meteo.com/v1/archive?latitude=${ACTIVE.lat}&longitude=${ACTIVE.lon}&start_date=${start}&end_date=${end}&daily=precipitation_sum,precipitation_hours&hourly=precipitation&timezone=Asia%2FBangkok`;
+  return fetchOpenMeteo('Open-Meteo archive', [
+    `${base}&models=era5_land&cell_selection=${CELL}`,
+    `${base}&models=era5_land`,
+    base, // ERA5 ปกติ — หยาบกว่าแต่ยังใช้งานได้
+  ]);
 }
 
 async function fetchOpenMeteoForecast() {
   // past_days=7 → ได้ข้อมูลย้อนหลังจาก endpoint เดียวกับพยากรณ์ ใช้เติมช่วงที่ archive API
   // ยังไม่อัปเดต (archive มี lag ได้หลายวัน) เพื่อไม่ให้ panel ย้อนหลังกลายเป็นช่องว่าง
-  const url = `https://api.open-meteo.com/v1/forecast?latitude=${ACTIVE.lat}&longitude=${ACTIVE.lon}&daily=precipitation_sum,precipitation_probability_max,temperature_2m_max,temperature_2m_min&current=temperature_2m,relative_humidity_2m,precipitation,rain,weather_code,wind_speed_10m&hourly=precipitation,precipitation_probability&timezone=Asia%2FBangkok&forecast_days=14&past_days=7&cell_selection=${CELL}`;
-  const r = await fetch(url);
-  if (!r.ok) throw new Error(`Open-Meteo forecast: HTTP ${r.status}`);
-  return await r.json();
+  const base = `https://api.open-meteo.com/v1/forecast?latitude=${ACTIVE.lat}&longitude=${ACTIVE.lon}&daily=precipitation_sum,precipitation_probability_max,temperature_2m_max,temperature_2m_min&current=temperature_2m,relative_humidity_2m,precipitation,rain,weather_code,wind_speed_10m&hourly=precipitation,precipitation_probability&timezone=Asia%2FBangkok&forecast_days=14`;
+  return fetchOpenMeteo('Open-Meteo forecast', [
+    `${base}&past_days=7&cell_selection=${CELL}`,
+    `${base}&past_days=7`,
+    base, // ตัวหลักของทั้งหน้า — ต้องได้ข้อมูลให้ได้ แม้จะเหลือแค่ชุดพื้นฐาน
+  ]);
 }
 
 // เรียกหลายโมเดลในครั้งเดียว — Open-Meteo จะต่อท้ายชื่อโมเดลให้ทุกตัวแปร
 // เช่น precipitation_sum_ecmwf_ifs025
 async function fetchOpenMeteoModels() {
-  const url = `https://api.open-meteo.com/v1/forecast?latitude=${ACTIVE.lat}&longitude=${ACTIVE.lon}&daily=precipitation_sum&timezone=Asia%2FBangkok&forecast_days=14&cell_selection=${CELL}&models=${COMPARE_MODELS.join(',')}`;
-  const r = await fetch(url);
-  if (!r.ok) throw new Error(`Open-Meteo models: HTTP ${r.status}`);
-  return await r.json();
+  const base = `https://api.open-meteo.com/v1/forecast?latitude=${ACTIVE.lat}&longitude=${ACTIVE.lon}&daily=precipitation_sum&timezone=Asia%2FBangkok&forecast_days=14`;
+  // ถ้าชื่อโมเดลตัวใดไม่มีอยู่จริง ทั้งคำขอจะ 400 → ถอยไปใช้ชุดที่แน่นอนกว่า
+  // เทียบ 2 โมเดลยังมีประโยชน์ ดีกว่าไม่มีเลย
+  return fetchOpenMeteo('Open-Meteo models', [
+    `${base}&cell_selection=${CELL}&models=${COMPARE_MODELS.join(',')}`,
+    `${base}&models=${COMPARE_MODELS.join(',')}`,
+    `${base}&models=ecmwf_ifs025,gfs_seamless`,
+  ]);
 }
 
 // Ensemble — สมาชิกหลายสิบชุดต่อหนึ่งวัน ใช้คำนวณความน่าจะเป็นและช่วงค่า
 // แทนตัวเลขเดี่ยวที่ให้ความรู้สึกแม่นเกินจริง
 // ขอเป็น hourly แล้วรวมเป็นรายวันตามเวลาไทยเอง (คุมขอบเขตวันได้ตรงกับส่วนอื่น)
 async function fetchOpenMeteoEnsemble() {
-  const url = `https://ensemble-api.open-meteo.com/v1/ensemble?latitude=${ACTIVE.lat}&longitude=${ACTIVE.lon}&hourly=precipitation&timezone=Asia%2FBangkok&forecast_days=14&cell_selection=${CELL}&models=${ENSEMBLE_MODEL}`;
-  const r = await fetch(url);
-  if (!r.ok) throw new Error(`Open-Meteo ensemble: HTTP ${r.status}`);
-  return await r.json();
+  const base = `https://ensemble-api.open-meteo.com/v1/ensemble?latitude=${ACTIVE.lat}&longitude=${ACTIVE.lon}&hourly=precipitation&timezone=Asia%2FBangkok&forecast_days=14`;
+  // ensemble API บังคับให้ระบุ models เสมอ จึงถอยไปลองชื่อระบบอื่นแทนการตัดทิ้ง
+  return fetchOpenMeteo('Open-Meteo ensemble', [
+    `${base}&cell_selection=${CELL}&models=${ENSEMBLE_MODEL}`,
+    `${base}&models=${ENSEMBLE_MODEL}`,
+    `${base}&models=gfs025`,
+    `${base}&models=icon_seamless`,
+  ]);
 }
 
 // ค้นหาพิกัดจากชื่อสถานที่ (ฟรี ไม่ต้องใช้ key รองรับภาษาไทย)
@@ -1582,7 +1614,9 @@ function renderConfidence(ensembleDaily, agreement) {
     const isToday = date === todayStr;
 
     let badge = '';
-    if (votes) {
+    // "ความเห็นตรงกัน" ต้องมีอย่างน้อย 2 โมเดลถึงจะมีความหมาย — โมเดลเดียวแล้วขึ้นว่า
+    // "1/1 ตรงกันว่าตก" จะอ่านเป็นความมั่นใจสูงทั้งที่ไม่มีอะไรมาเทียบ
+    if (votes && votes.length >= 2) {
       const lvl = agreementLevel(votes);
       const yes = votes.filter(v => v.rain).length;
       badge = `<span class="conf-badge" style="background:${lvl.color}">${yes}/${votes.length} ${lvl.label}</span>`;
