@@ -334,6 +334,30 @@
       background: linear-gradient(90deg, #60a5fa, #2563eb);
       border-radius: 2px;
     }
+    .rain-event.chance {
+      background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+      border-left-style: dashed;
+    }
+    .rain-event-mm.chance { color: #64748b; }
+    .rain-count.chance { background: #94a3b8; }
+    .rain-day-prob {
+      background: #e0f2fe;
+      color: #075985;
+      padding: 3px 10px;
+      border-radius: 12px;
+      font-size: 0.78em;
+      font-weight: 700;
+    }
+    .rain-day-note {
+      background: #f8fafc;
+      border: 1px dashed #cbd5e0;
+      border-radius: 10px;
+      padding: 9px 13px;
+      margin-bottom: 10px;
+      font-size: 0.83em;
+      color: #475569;
+      line-height: 1.6;
+    }
     .rain-now-indicator {
       background: #ef4444;
       color: white;
@@ -1188,14 +1212,19 @@ function getCurrentRainStatus(omCurrent) {
 
 // รวมชั่วโมงฝนที่ติดกันเป็น 1 event — เก็บรายชั่วโมงไว้ด้วย เพื่อให้ตัดแบ่งตามวันได้แม่นยำ
 function summarizeHours(hours) {
+  const totalMm = hours.reduce((s, h) => s + h.precip, 0);
   return {
     hourList: hours,
     startMs: hours[0].startMs,
     endMs: hours[hours.length - 1].startMs + 3600000, // ปลายช่วงแบบ exclusive
     hours: hours.length,
-    totalMm: hours.reduce((s, h) => s + h.precip, 0),
+    totalMm,
     maxMm: Math.max(...hours.map(h => h.precip)),
     maxProb: Math.max(...hours.map(h => h.prob)),
+    // detectRainEvents รับช่วงเวลาเข้ามาสองแบบ: "โมเดลคาดว่ามีฝนจริง" กับ
+    // "ปริมาณแทบเป็นศูนย์ แต่โอกาสสูงพอ" — เดิมแสดงเหมือนกันหมด จึงขึ้นว่าฝนตก
+    // ทั้งที่ปริมาณ 0.0 มม. และขัดกับการ์ดสรุปที่บอกว่าวันนี้ไม่มีฝน
+    kind: totalMm >= 0.1 ? 'rain' : 'chance',
   };
 }
 
@@ -1275,7 +1304,7 @@ function classifyIntensity(maxMm) {
   return                  { level: 'เบา',      color: '#06b6d4' };
 }
 
-function renderRainEvents(forecast, currentObs = null) {
+function renderRainEvents(forecast, currentObs = null, ensembleDaily = null) {
   const container = document.getElementById('rain-events');
   container.innerHTML = '';
 
@@ -1298,7 +1327,18 @@ function renderRainEvents(forecast, currentObs = null) {
   for (const date of [todayStr, tomorrowStr]) {
     const dayEvents = byDate[date] || [];
     const dayName = bkkDayLabel(date, { weekday: 'long', day: 'numeric', month: 'short' });
-    const totalMm = dayEvents.reduce((s, e) => s + e.totalMm, 0);
+    // นับเฉพาะช่วงที่โมเดลคาดว่ามีปริมาณจริง — ช่วง "มีโอกาส" ไม่ควรถูกบวกเป็นฝนรวม
+    const rainEvents = dayEvents.filter(e => e.kind === 'rain');
+    const chanceEvents = dayEvents.filter(e => e.kind === 'chance');
+    const totalMm = rainEvents.reduce((s, e) => s + e.totalMm, 0);
+
+    // โอกาสฝนรายวันจาก ensemble = ตัวเลขเดียวกับที่การ์ดสรุปด้านบนใช้
+    // เอามาแสดงคู่กันตรงนี้ จะได้ไม่ต้องเทียบข้ามแผงแล้วรู้สึกว่าขัดกัน
+    const dayMembers = ensembleDaily?.get(date);
+    const dayStats = dayMembers ? ensembleStats(dayMembers) : null;
+    const dayProbChip = dayStats
+      ? `<span class="rain-day-prob">โอกาสฝนทั้งวัน ${dayStats.probs[0.1]}%</span>`
+      : '';
 
     const dayDiv = document.createElement('div');
 
@@ -1306,12 +1346,17 @@ function renderRainEvents(forecast, currentObs = null) {
       dayDiv.innerHTML = `
         <div class="rain-day-header">
           <h3>📅 ${dayName}</h3>
+          ${dayProbChip}
         </div>
         <div class="rain-day-empty">☀️ ไม่มีฝนตกคาดการณ์</div>
       `;
     } else {
       const cards = dayEvents.map(e => {
-        const intensity = classifyIntensity(e.maxMm);
+        const isChance = e.kind === 'chance';
+        // ช่วง "มีโอกาส" ไม่มีปริมาณให้จัดความหนัก จึงใช้สีกลาง ๆ แทน
+        const intensity = isChance
+          ? { level: 'มีโอกาสฝน', color: '#94a3b8' }
+          : classifyIntensity(e.maxMm);
 
         // event ครอบคลุมเวลาปัจจุบันหรือไม่ — เทียบด้วย epoch จริงทั้งคู่
         const isOngoing = e.startMs <= nowMs && e.endMs > nowMs;
@@ -1326,31 +1371,60 @@ function renderRainEvents(forecast, currentObs = null) {
           ? `<span class="rain-event-duration">${carry}</span>`
           : '';
 
+        // ตัวเลขเด่นของการ์ด: ถ้าเป็นช่วงมีโอกาส ให้ชูโอกาส ไม่ใช่ "0.0 มม."
+        // ซึ่งอ่านแล้วขัดกับหัวข้อที่บอกว่าฝนตก
+        const mainValue = isChance
+          ? `<div class="rain-event-mm chance">${e.maxProb}%</div>`
+          : `<div class="rain-event-mm">${e.totalMm.toFixed(1)} มม.</div>`;
+        const subLine = isChance
+          ? `<div class="rain-event-prob"><span>โมเดลคาดปริมาณเกือบเป็นศูนย์ — เป็นช่วงเสี่ยง ไม่ใช่ฝนที่คาดว่าจะตกแน่</span></div>`
+          : `<div class="rain-event-prob">
+               <span>โอกาส ${e.maxProb}%</span>
+               <div class="rain-event-prob-bar"><div class="rain-event-prob-fill" style="width:${Math.min(e.maxProb,100)}%"></div></div>
+             </div>`;
+
         return `
-          <div class="rain-event" style="border-left-color:${intensity.color}">
+          <div class="rain-event${isChance ? ' chance' : ''}" style="border-left-color:${intensity.color}">
             <div class="rain-event-time">
-              ⏰ ${bkkHour(e.startMs)} - ${bkkHour(e.endMs)}
+              ${isChance ? '🌦️' : '🌧️'} ${bkkHour(e.startMs)} - ${bkkHour(e.endMs)}
               <span class="rain-event-duration">(${e.hours} ชม.)</span>
               ${ongoingBadge}${carryNote}
             </div>
             <div class="rain-event-stats">
-              <div class="rain-event-mm">${e.totalMm.toFixed(1)} มม.</div>
+              ${mainValue}
               <div class="rain-event-intensity" style="background:${intensity.color}">${intensity.level}</div>
             </div>
-            <div class="rain-event-prob">
-              <span>โอกาส ${e.maxProb}%</span>
-              <div class="rain-event-prob-bar"><div class="rain-event-prob-fill" style="width:${Math.min(e.maxProb,100)}%"></div></div>
-            </div>
+            ${subLine}
           </div>
         `;
       }).join('');
 
+      const counts = [
+        rainEvents.length ? `<span class="rain-count">ฝนตก ${rainEvents.length} ครั้ง</span>` : '',
+        chanceEvents.length ? `<span class="rain-count chance">ช่วงเสี่ยง ${chanceEvents.length} ช่วง</span>` : '',
+      ].filter(Boolean).join('');
+      const totalChip = rainEvents.length
+        ? `<span class="rain-total">ฝนรวม ${totalMm.toFixed(1)} มม.</span>`
+        : '';
+
+      // เตือนตรงจุดเมื่อสองแหล่งไม่ตรงกัน แทนที่จะปล่อยให้ผู้ใช้ไปเจอเองว่าแผงบน
+      // กับแผงล่างพูดคนละอย่าง
+      const lowDayProb = dayStats && dayStats.probs[0.1] < 30;
+      const mismatchNote = (lowDayProb && !rainEvents.length && chanceEvents.length)
+        ? `<div class="rain-day-note">
+             ℹ️ ช่วงเวลาข้างล่างมาจากโมเดลรายชั่วโมง ส่วนโอกาส ${dayStats.probs[0.1]}% มาจาก ensemble
+             ซึ่งเป็นคนละโมเดลกัน — โดยรวมแล้ว<b>โอกาสฝนวันนี้ต่ำ</b> ช่วงที่แสดงคือช่วงที่เสี่ยงที่สุดเท่านั้น
+           </div>`
+        : '';
+
       dayDiv.innerHTML = `
         <div class="rain-day-header">
           <h3>📅 ${dayName}</h3>
-          <span class="rain-count">${dayEvents.length} ครั้ง</span>
-          <span class="rain-total">ฝนรวม ${totalMm.toFixed(1)} มม.</span>
+          ${dayProbChip}
+          ${counts}
+          ${totalChip}
         </div>
+        ${mismatchNote}
         <div class="rain-events-grid">${cards}</div>
       `;
     }
@@ -2198,7 +2272,7 @@ async function render() {
 
     if (forecast) {
       // Rain events (today + tomorrow) — pass current observation for accurate "กำลังตก" badge
-      renderRainEvents(forecast, omCur);
+      renderRainEvents(forecast, omCur, ensembleDaily);
     } else {
       panelMessage('rain-events', 'โหลดพยากรณ์ไม่สำเร็จ');
     }
@@ -2265,12 +2339,33 @@ function renderHeadline({ rainingNow, todayStats, todayEvents, weekAhead, ensemb
     parts.push({ icon: '🌧️', text: '<b>ฝนกำลังตกอยู่ตอนนี้</b>', tone: 'wet' });
   } else if (todayStats) {
     const p = todayStats.probs[0.1];
-    const when = todayEvents && todayEvents.length
-      ? ` ช่วง ${bkkHour(todayEvents[0].startMs)}-${bkkHour(todayEvents[0].endMs)}`
-      : '';
-    if (p >= 60) parts.push({ icon: '🌧️', text: `วันนี้<b>น่าจะมีฝน</b> (โอกาส ${p}%)${when}`, tone: 'wet' });
-    else if (p >= 30) parts.push({ icon: '🌦️', text: `วันนี้<b>อาจมีฝน</b> (โอกาส ${p}%)${when}`, tone: 'mixed' });
-    else parts.push({ icon: '☀️', text: `วันนี้<b>ไม่น่ามีฝน</b> (โอกาส ${p}%)`, tone: 'dry' });
+    const evs = todayEvents || [];
+    const rainEvs = evs.filter(e => e.kind === 'rain');
+    const chanceEvs = evs.filter(e => e.kind === 'chance');
+    const span = e => `${bkkHour(e.startMs)}-${bkkHour(e.endMs)}`;
+    const when = rainEvs.length ? ` ช่วง ${rainEvs.map(span).join(', ')}` : '';
+
+    if (p >= 60) {
+      parts.push({ icon: '🌧️', text: `วันนี้<b>น่าจะมีฝน</b> (โอกาส ${p}%)${when}`, tone: 'wet' });
+    } else if (p >= 30) {
+      parts.push({ icon: '🌦️', text: `วันนี้<b>อาจมีฝน</b> (โอกาส ${p}%)${when}`, tone: 'mixed' });
+    } else if (rainEvs.length) {
+      // โอกาสรวมทั้งวันต่ำ แต่โมเดลรายชั่วโมงยังคาดว่ามีปริมาณ — พูดทั้งสองอย่าง
+      parts.push({
+        icon: '🌦️',
+        text: `วันนี้โอกาสฝนโดยรวม<b>ต่ำ</b> (${p}%) แต่โมเดลรายชั่วโมงคาดว่ามีฝน${when}`,
+        tone: 'mixed',
+      });
+    } else if (chanceEvs.length) {
+      // เคสที่ทำให้ดูขัดกัน: แผงล่างลิสต์เวลา แต่เป็นแค่ช่วงเสี่ยง ปริมาณเกือบศูนย์
+      parts.push({
+        icon: '☀️',
+        text: `วันนี้<b>ไม่น่ามีฝน</b> (โอกาส ${p}%) — มีเพียงช่วงเสี่ยง ${chanceEvs.map(span).join(', ')} ที่ปริมาณเกือบเป็นศูนย์`,
+        tone: 'dry',
+      });
+    } else {
+      parts.push({ icon: '☀️', text: `วันนี้<b>ไม่น่ามีฝน</b> (โอกาส ${p}%)`, tone: 'dry' });
+    }
   }
 
   // 2) สัปดาห์ข้างหน้าพอต่อความต้องการน้ำไหม (เฉพาะแปลงมะพร้าว)
