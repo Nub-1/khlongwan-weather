@@ -437,6 +437,8 @@
     .conf-range-val { font-size: 1.25em; font-weight: 700; color: #1e3c72; margin: 2px 0; }
     .conf-range-val span { font-size: 0.6em; font-weight: 400; color: #4a5568; }
     .conf-range-sub { font-size: 0.72em; color: #718096; }
+    .conf-range-empty { border-style: dotted; opacity: 0.6; }
+    .conf-range-empty .conf-range-val { color: #a0aec0; }
     .conf-nodata { font-size: 0.82em; color: #a0aec0; font-style: italic; }
     .conf-models {
       margin-top: 10px;
@@ -1736,13 +1738,21 @@ function renderConfidence(ensembleDaily, agreement, forecast) {
       probsHtml = '<div class="conf-nodata">ไม่มีข้อมูล ensemble สำหรับวันนี้</div>';
     }
 
+    // กล่องช่วงปริมาณต้องขึ้นทุกการ์ดเสมอ (แม้ไม่มี stats) การ์ดถึงจะสูงเท่ากัน
+    // และจัดคอลัมน์ตรงกันทั้งหมด ไม่ใช่ยุบไปเหลือคอลัมน์เดียวเฉพาะวันที่ไม่มีข้อมูล
     const rangeHtml = stats ? `
       <div class="conf-range">
         <div class="conf-range-label">ปริมาณที่เป็นไปได้</div>
         <div class="conf-range-val">${stats.p10.toFixed(1)} – ${stats.p90.toFixed(1)}<span> มม.</span></div>
         <div class="conf-range-sub">ค่ากลาง ${stats.p50.toFixed(1)} มม. · จาก ${stats.n} ชุด</div>
       </div>
-    ` : '';
+    ` : `
+      <div class="conf-range conf-range-empty">
+        <div class="conf-range-label">ปริมาณที่เป็นไปได้</div>
+        <div class="conf-range-val">—</div>
+        <div class="conf-range-sub">ไม่มีข้อมูล ensemble</div>
+      </div>
+    `;
 
     const modelsHtml = votes ? `
       <div class="conf-models">
