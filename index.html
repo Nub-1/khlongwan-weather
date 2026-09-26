@@ -945,6 +945,14 @@ function bkkHour(epochMs) {
   return `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`;
 }
 
+// เวลา "สิ้นสุดช่วง" (endMs แบบ exclusive) ที่ตกที่เที่ยงคืนพอดี หมายถึงสิ้นสุดเมื่อ
+// 24:00 ของวันนั้น ไม่ใช่ 00:00 ของวันถัดไป — ถ้าเขียนเป็น 00:00 ช่วงที่ตกทั้งวัน
+// (00:00-00:00) จะอ่านเหมือนยาวศูนย์ชั่วโมง ทั้งที่ป้าย "(24 ชม.)" บอกตรงข้าม
+function bkkHourEnd(epochMs) {
+  const t = bkkHour(epochMs);
+  return t === '00:00' ? '24:00' : t;
+}
+
 function addDays(dateStr, n) {
   return bkkDateStr(bkkToEpoch(dateStr) + n * 86400000);
 }
@@ -1388,7 +1396,7 @@ function renderRainEvents(forecast, rainingNow = false, ensembleDaily = null) {
         return `
           <div class="rain-event${isChance ? ' chance' : ''}" style="border-left-color:${intensity.color}">
             <div class="rain-event-time">
-              ${isChance ? '🌦️' : '🌧️'} ${bkkHour(e.startMs)} - ${bkkHour(e.endMs)}
+              ${isChance ? '🌦️' : '🌧️'} ${bkkHour(e.startMs)} - ${bkkHourEnd(e.endMs)}
               <span class="rain-event-duration">(${e.hours} ชม.)</span>
               ${ongoingBadge}${carryNote}
             </div>
@@ -1526,7 +1534,7 @@ function renderRainHistory(archive, forecast) {
         return `
           <div class="rain-event" style="border-left-color:${intensity.color}">
             <div class="rain-event-time">
-              ⏰ ${bkkHour(e.startMs)} - ${bkkHour(e.endMs)}
+              ⏰ ${bkkHour(e.startMs)} - ${bkkHourEnd(e.endMs)}
               <span class="rain-event-duration">(${e.hours} ชม.)</span>
             </div>
             <div class="rain-event-stats">
@@ -2355,7 +2363,7 @@ function renderHeadline({ rainingNow, todayStats, todayEvents, weekAhead, ensemb
     const evs = todayEvents || [];
     const rainEvs = evs.filter(e => e.kind === 'rain');
     const chanceEvs = evs.filter(e => e.kind === 'chance');
-    const span = e => `${bkkHour(e.startMs)}-${bkkHour(e.endMs)}`;
+    const span = e => `${bkkHour(e.startMs)}-${bkkHourEnd(e.endMs)}`;
     const when = rainEvs.length ? ` ช่วง ${rainEvs.map(span).join(', ')}` : '';
 
     if (p >= 60) {
