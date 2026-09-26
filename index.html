@@ -1306,7 +1306,9 @@ function classifyIntensity(maxMm) {
   return                  { level: 'เบา',      color: '#06b6d4' };
 }
 
-function renderRainEvents(forecast, currentObs = null, ensembleDaily = null) {
+// rainingNow ต้องเป็นค่าเดียวกับที่การ์ด "ฝนตอนนี้" ใช้ (เรดาร์ก่อน โมเดลรอง) ไม่ใช่คำนวณ
+// จากโมเดลอย่างเดียวซ้ำในนี้ — ไม่งั้นแผงนี้กับการ์ดด้านบนจะบอกสถานะฝนไม่ตรงกัน
+function renderRainEvents(forecast, rainingNow = false, ensembleDaily = null) {
   const container = document.getElementById('rain-events');
   container.innerHTML = '';
 
@@ -1323,8 +1325,6 @@ function renderRainEvents(forecast, currentObs = null, ensembleDaily = null) {
   const tomorrowStr = addDays(todayStr, 1);
 
   const nowMs = Date.now();
-  // ป้าย "กำลังตก" ต้องมี observation จริงยืนยัน ไม่ใช่เชื่อ forecast อย่างเดียว
-  const rainingNow = isObservedRaining(currentObs);
 
   for (const date of [todayStr, tomorrowStr]) {
     const dayEvents = byDate[date] || [];
@@ -2213,6 +2213,9 @@ async function render() {
     const longdo = rain?.rain;
     const longdoRaining = longdo ? longdo.intensity > 0 : null;
     const omRaining = hasOmCurrent ? isObservedRaining(omCur) : null;
+    // ค่าที่ "ตอบว่าฝนกำลังตกไหม" ต้องใช้ตัวเดียวกันทุกแผงในหน้านี้ — ไม่งั้นแผงหนึ่งบอก
+    // "กำลังตก" (อิงโมเดล) พร้อมกับอีกแผงบอก "ไม่มีฝน" (อิงเรดาร์) ในเวลาเดียวกัน
+    const rainingNowCombined = longdo ? longdoRaining : omRaining;
 
     let rainDescFull = '';
     if (longdo) {
@@ -2281,8 +2284,8 @@ async function render() {
       last7Missing ? `⏳ ขาดข้อมูล ${last7Missing} วัน` : 'มม. รวม 7 วัน';
 
     if (forecast) {
-      // Rain events (today + tomorrow) — pass current observation for accurate "กำลังตก" badge
-      renderRainEvents(forecast, omCur, ensembleDaily);
+      // Rain events (today + tomorrow) — same radar-priority "rainingNow" as the summary card
+      renderRainEvents(forecast, rainingNowCombined, ensembleDaily);
     } else {
       panelMessage('rain-events', 'โหลดพยากรณ์ไม่สำเร็จ');
     }
@@ -2314,7 +2317,7 @@ async function render() {
     const weekAheadDates = [];
     for (let i = 0; i < 7; i++) weekAheadDates.push(addDays(todayStr, i));
     renderHeadline({
-      rainingNow: longdo ? longdoRaining : omRaining,
+      rainingNow: rainingNowCombined,
       todayStats,
       todayEvents: forecast?.hourly
         ? (groupEventsByDay(detectRainEvents(forecast.hourly))[todayStr] || [])
