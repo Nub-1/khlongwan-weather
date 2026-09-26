@@ -437,6 +437,8 @@
     .conf-range-val { font-size: 1.25em; font-weight: 700; color: #1e3c72; margin: 2px 0; }
     .conf-range-val span { font-size: 0.6em; font-weight: 400; color: #4a5568; }
     .conf-range-sub { font-size: 0.72em; color: #718096; }
+    .conf-range-empty { border-style: dotted; opacity: 0.6; }
+    .conf-range-empty .conf-range-val { color: #a0aec0; }
     .conf-nodata { font-size: 0.82em; color: #a0aec0; font-style: italic; }
     .conf-models {
       margin-top: 10px;
@@ -943,6 +945,14 @@ function bkkHour(epochMs) {
   return `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`;
 }
 
+// เวลา "สิ้นสุดช่วง" (endMs แบบ exclusive) ที่ตกที่เที่ยงคืนพอดี หมายถึงสิ้นสุดเมื่อ
+// 24:00 ของวันนั้น ไม่ใช่ 00:00 ของวันถัดไป — ถ้าเขียนเป็น 00:00 ช่วงที่ตกทั้งวัน
+// (00:00-00:00) จะอ่านเหมือนยาวศูนย์ชั่วโมง ทั้งที่ป้าย "(24 ชม.)" บอกตรงข้าม
+function bkkHourEnd(epochMs) {
+  const t = bkkHour(epochMs);
+  return t === '00:00' ? '24:00' : t;
+}
+
 function addDays(dateStr, n) {
   return bkkDateStr(bkkToEpoch(dateStr) + n * 86400000);
 }
@@ -1304,7 +1314,9 @@ function classifyIntensity(maxMm) {
   return                  { level: 'เบา',      color: '#06b6d4' };
 }
 
-function renderRainEvents(forecast, currentObs = null, ensembleDaily = null) {
+// rainingNow ต้องเป็นค่าเดียวกับที่การ์ด "ฝนตอนนี้" ใช้ (เรดาร์ก่อน โมเดลรอง) ไม่ใช่คำนวณ
+// จากโมเดลอย่างเดียวซ้ำในนี้ — ไม่งั้นแผงนี้กับการ์ดด้านบนจะบอกสถานะฝนไม่ตรงกัน
+function renderRainEvents(forecast, rainingNow = false, ensembleDaily = null) {
   const container = document.getElementById('rain-events');
   container.innerHTML = '';
 
@@ -1321,8 +1333,6 @@ function renderRainEvents(forecast, currentObs = null, ensembleDaily = null) {
   const tomorrowStr = addDays(todayStr, 1);
 
   const nowMs = Date.now();
-  // ป้าย "กำลังตก" ต้องมี observation จริงยืนยัน ไม่ใช่เชื่อ forecast อย่างเดียว
-  const rainingNow = isObservedRaining(currentObs);
 
   for (const date of [todayStr, tomorrowStr]) {
     const dayEvents = byDate[date] || [];
@@ -1386,7 +1396,7 @@ function renderRainEvents(forecast, currentObs = null, ensembleDaily = null) {
         return `
           <div class="rain-event${isChance ? ' chance' : ''}" style="border-left-color:${intensity.color}">
             <div class="rain-event-time">
-              ${isChance ? '🌦️' : '🌧️'} ${bkkHour(e.startMs)} - ${bkkHour(e.endMs)}
+              ${isChance ? '🌦️' : '🌧️'} ${bkkHour(e.startMs)} - ${bkkHourEnd(e.endMs)}
               <span class="rain-event-duration">(${e.hours} ชม.)</span>
               ${ongoingBadge}${carryNote}
             </div>
@@ -1524,7 +1534,7 @@ function renderRainHistory(archive, forecast) {
         return `
           <div class="rain-event" style="border-left-color:${intensity.color}">
             <div class="rain-event-time">
-              ⏰ ${bkkHour(e.startMs)} - ${bkkHour(e.endMs)}
+              ⏰ ${bkkHour(e.startMs)} - ${bkkHourEnd(e.endMs)}
               <span class="rain-event-duration">(${e.hours} ชม.)</span>
             </div>
             <div class="rain-event-stats">
@@ -1736,13 +1746,21 @@ function renderConfidence(ensembleDaily, agreement, forecast) {
       probsHtml = '<div class="conf-nodata">ไม่มีข้อมูล ensemble สำหรับวันนี้</div>';
     }
 
+    // กล่องช่วงปริมาณต้องขึ้นทุกการ์ดเสมอ (แม้ไม่มี stats) การ์ดถึงจะสูงเท่ากัน
+    // และจัดคอลัมน์ตรงกันทั้งหมด ไม่ใช่ยุบไปเหลือคอลัมน์เดียวเฉพาะวันที่ไม่มีข้อมูล
     const rangeHtml = stats ? `
       <div class="conf-range">
         <div class="conf-range-label">ปริมาณที่เป็นไปได้</div>
         <div class="conf-range-val">${stats.p10.toFixed(1)} – ${stats.p90.toFixed(1)}<span> มม.</span></div>
         <div class="conf-range-sub">ค่ากลาง ${stats.p50.toFixed(1)} มม. · จาก ${stats.n} ชุด</div>
       </div>
-    ` : '';
+    ` : `
+      <div class="conf-range conf-range-empty">
+        <div class="conf-range-label">ปริมาณที่เป็นไปได้</div>
+        <div class="conf-range-val">—</div>
+        <div class="conf-range-sub">ไม่มีข้อมูล ensemble</div>
+      </div>
+    `;
 
     const modelsHtml = votes ? `
       <div class="conf-models">
@@ -2203,6 +2221,9 @@ async function render() {
     const longdo = rain?.rain;
     const longdoRaining = longdo ? longdo.intensity > 0 : null;
     const omRaining = hasOmCurrent ? isObservedRaining(omCur) : null;
+    // ค่าที่ "ตอบว่าฝนกำลังตกไหม" ต้องใช้ตัวเดียวกันทุกแผงในหน้านี้ — ไม่งั้นแผงหนึ่งบอก
+    // "กำลังตก" (อิงโมเดล) พร้อมกับอีกแผงบอก "ไม่มีฝน" (อิงเรดาร์) ในเวลาเดียวกัน
+    const rainingNowCombined = longdo ? longdoRaining : omRaining;
 
     let rainDescFull = '';
     if (longdo) {
@@ -2271,8 +2292,8 @@ async function render() {
       last7Missing ? `⏳ ขาดข้อมูล ${last7Missing} วัน` : 'มม. รวม 7 วัน';
 
     if (forecast) {
-      // Rain events (today + tomorrow) — pass current observation for accurate "กำลังตก" badge
-      renderRainEvents(forecast, omCur, ensembleDaily);
+      // Rain events (today + tomorrow) — same radar-priority "rainingNow" as the summary card
+      renderRainEvents(forecast, rainingNowCombined, ensembleDaily);
     } else {
       panelMessage('rain-events', 'โหลดพยากรณ์ไม่สำเร็จ');
     }
@@ -2304,7 +2325,7 @@ async function render() {
     const weekAheadDates = [];
     for (let i = 0; i < 7; i++) weekAheadDates.push(addDays(todayStr, i));
     renderHeadline({
-      rainingNow: longdo ? longdoRaining : omRaining,
+      rainingNow: rainingNowCombined,
       todayStats,
       todayEvents: forecast?.hourly
         ? (groupEventsByDay(detectRainEvents(forecast.hourly))[todayStr] || [])
@@ -2342,7 +2363,7 @@ function renderHeadline({ rainingNow, todayStats, todayEvents, weekAhead, ensemb
     const evs = todayEvents || [];
     const rainEvs = evs.filter(e => e.kind === 'rain');
     const chanceEvs = evs.filter(e => e.kind === 'chance');
-    const span = e => `${bkkHour(e.startMs)}-${bkkHour(e.endMs)}`;
+    const span = e => `${bkkHour(e.startMs)}-${bkkHourEnd(e.endMs)}`;
     const when = rainEvs.length ? ` ช่วง ${rainEvs.map(span).join(', ')}` : '';
 
     if (p >= 60) {
