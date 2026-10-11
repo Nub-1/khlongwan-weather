@@ -72,6 +72,7 @@ button { font: inherit; color: inherit; }
 .brand { display: flex; gap: 12px; align-items: center; margin-bottom: 14px; }
 .brand-icon { font-size: 36px; line-height: 1; }
 .brand h1 { font-size: 1.35rem; line-height: 1.25; }
+.app-name { font-size: 0.8rem; font-weight: 600; color: var(--ink2); letter-spacing: 0.2px; }
 .location-bar { display: flex; gap: 8px; flex-wrap: wrap; }
 .location-bar select {
   flex: 1 1 200px; min-width: 0; padding: 10px 12px; font: inherit; color: var(--ink);
