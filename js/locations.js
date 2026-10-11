@@ -130,7 +130,7 @@
     $('place-icon').textContent = active.coconut ? '🌴' : '📍';
     $('place-name').textContent = active.name;
     $('place-sub').textContent = `${formatCoord(active.lat, active.lon)}${active.detail ? ' · ' + active.detail : ''}`;
-    document.title = `${active.coconut ? '🌴' : '📍'} ${active.name} — พยากรณ์ฝน`;
+    document.title = `${active.name} — พยากรณ์อากาศเจาะจงพื้นที่`;
     const c = $('coconut-card');
     if (c) c.hidden = !active.coconut;
   }
