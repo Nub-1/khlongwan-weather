@@ -58,8 +58,8 @@
     } else if (rv && !rv.ok) {
       rows.push(`<li class="bad"><span class="mk">✗</span> RainViewer เรดาร์: ${short(rv.error)}</li>`);
     } else if (S.radar && S.radar.reason) {
-      const why = { stale: 'ภาพเรดาร์เก่าเกินไป', decode: 'ถอดค่าเรดาร์ไม่ผ่านการตรวจสอบ', noframes: 'ไม่มีภาพ' }[S.radar.reason] || S.radar.reason;
-      rows.push(`<li class="bad"><span class="mk">✗</span> RainViewer เรดาร์: ${why}</li>`);
+      const why = { stale: 'ภาพเรดาร์เก่าเกินไป', decode: 'ถอดค่าเรดาร์ไม่ผ่านการตรวจสอบ', noframes: 'ไม่มีภาพ', decode_error: `อ่านค่าเรดาร์ไม่ได้ (${S.radar.message || ''}) — ยังดูภาพบนแผนที่ได้` }[S.radar.reason] || S.radar.reason;
+      rows.push(`<li class="bad"><span class="mk">✗</span> RainViewer เรดาร์: ${U.esc(why)}</li>`);
     } else {
       rows.push('<li class="bad"><span class="mk">…</span> RainViewer เรดาร์: กำลังโหลด...</li>');
     }
@@ -286,20 +286,25 @@
   }
 
   // ============ 7. Reliability ============
+  function backtestRows(res) {
+    const r = res.backtest;
+    if (!r || !r.ok) return null;
+    const d = r.data;
+    const obs = new Map();
+    (d.obsTimes || []).forEach((t, i) => { const v = d.obsValues?.[i]; if (v != null) obs.set(t, v); });
+    return WX.sources.BACKTEST_MODELS.map(m => {
+      const pm = d.perModel[m.id];
+      if (!pm) return null;
+      const sc = E.scoreForecasts(obs, E.dailyFromHourly(pm.times, pm.values), 1);
+      return sc ? { m, label: m.label, sc } : null;
+    }).filter(Boolean);
+  }
+
   function renderReliability(S, el) {
     const r = S.res.backtest;
     if (!r) { el.innerHTML = '<p class="muted">กำลังโหลด...</p>'; return; }
     if (!r.ok) { el.innerHTML = `<p class="muted">ยังคำนวณไม่ได้: ${short(r.error)}</p>`; return; }
-    const d = r.data;
-    const obs = new Map();
-    (d.obsTimes || []).forEach((t, i) => { const v = d.obsValues?.[i]; if (v != null) obs.set(t, v); });
-    const rows = WX.sources.BACKTEST_MODELS.map(m => {
-      const pm = d.perModel[m.id];
-      if (!pm) return null;
-      const fc = E.dailyFromHourly(pm.times, pm.values);
-      const sc = E.scoreForecasts(obs, fc, 1);
-      return sc ? { m, sc } : null;
-    }).filter(Boolean);
+    const rows = S.backtest || [];
     if (!rows.length) { el.innerHTML = '<p class="muted">ข้อมูลย้อนหลังไม่พอสำหรับประเมิน</p>'; return; }
     const pct = v => (v == null ? '–' : `${Math.round(v * 100)}%`);
     const best = rows.filter(x => x.sc.csi != null).sort((a, b) => b.sc.csi - a.sc.csi)[0];
@@ -311,6 +316,13 @@
         <tbody>${rows.map(x => `<tr${best && x === best ? ' class="best"' : ''}><td>${U.esc(x.m.label)}</td><td>${pct(x.sc.pod)}</td><td>${pct(x.sc.far)}</td><td>${x.sc.csi == null ? '–' : x.sc.csi.toFixed(2)}</td><td>${x.sc.freqBias == null ? '–' : '×' + x.sc.freqBias.toFixed(1)}</td><td>${U.fmtMm(x.sc.mae)} มม.</td></tr>`).join('')}</tbody>
       </table></div>
       ${best ? `<p>ที่จุดนี้ย้อนหลังที่ผ่านมา <b>${U.esc(best.m.label)}</b> ได้คะแนนรวมสูงสุด</p>` : ''}
+      <h3>ผลรายวันของแต่ละโมเดล</h3>
+      <div class="stack-chart">${rows.map(x => {
+        const t = x.sc.hits + x.sc.falseAlarms + x.sc.misses;
+        const seg = (v, cls, lab) => v ? `<i class="${cls}" style="flex:${v}" title="${lab} ${v} วัน"></i>` : '';
+        return `<div class="stack-row"><span class="stack-lab">${U.esc(x.m.label)}</span><span class="stack-bar">${t ? seg(x.sc.hits, 'k-hit', 'ทายถูกว่าตก') + seg(x.sc.falseAlarms, 'k-fa', 'เตือนแต่ไม่ตก') + seg(x.sc.misses, 'k-miss', 'ตกแต่ไม่เตือน') : ''}</span><span class="stack-n">${x.sc.hits}/${x.sc.falseAlarms}/${x.sc.misses}</span></div>`;
+      }).join('')}</div>
+      <div class="legend"><span><i class="sw k-hit"></i> ทายถูกว่าตก</span><span><i class="sw k-fa"></i> เตือนแต่ไม่ตก</span><span><i class="sw k-miss"></i> ตกแต่ไม่เตือน</span></div>
       <p class="note warn-note">⚠️ "ฝนจริง" ในที่นี้คือข้อมูลวิเคราะห์ ERA5-Land (ไม่ใช่เครื่องวัดฝนบนแปลง) และ ${n < 20 ? 'ตัวอย่างน้อย ผลอาจแกว่ง ' : ''}ผลย้อนหลังไม่การันตีอนาคต — ใช้ดูแนวโน้มว่าโมเดลไหนเตือนเกิน/ขาดที่จุดนี้เท่านั้น</p>`;
   }
 
@@ -353,12 +365,97 @@
     $('refresh-status').textContent = text;
   }
 
+
+  // ============ บทวิเคราะห์อัตโนมัติ ============
+  function renderInsights(S, el) {
+    const items = WX.analysis.insights({
+      ens: S.ens, today: S.today, week: S.week, past7: S.past7, past7Missing: S.past7Missing,
+      instabilityByDate: S.instability.byDate, backtest: S.backtest,
+      modelLabels: Object.fromEntries(WX.sources.ENSEMBLES.map(e => [e.id, e.short])),
+    });
+    el.innerHTML = items.length
+      ? `<ul class="insights">${items.map(i => `<li class="tone-${i.tone}"><span class="ins-icon" aria-hidden="true">${i.icon}</span><span>${U.esc(i.text)}</span></li>`).join('')}</ul>
+         <p class="note">สรุปอัตโนมัติด้วยกฎตายตัวจากตัวเลขในหน้านี้ (ไม่ใช่ AI) — เรียงตามความสำคัญ</p>`
+      : '<p class="muted">ต้องใช้ข้อมูล ensemble — ยังไม่พร้อม</p>';
+  }
+
+  // ============ สภาพอากาศรายชั่วโมง (meteogram) ============
+  function renderMeteogram(S, el) {
+    const h = S.fc && S.fc.hourly;
+    if (!h) { el.innerHTML = '<p class="muted">ยังไม่มีข้อมูลรายชั่วโมง</p>'; return; }
+    const idx = [];
+    for (let i = 0; i < h.time.length && idx.length < 49; i++) if (U.bkkToEpoch(h.time[i]) > S.now - U.HOUR_MS) idx.push(i);
+    if (idx.length < 2) { el.innerHTML = '<p class="muted">ยังไม่มีข้อมูลรายชั่วโมง</p>'; return; }
+    const xs = idx.map(i => U.bkkToEpoch(h.time[i]));
+    const col = k => idx.map(i => (h[k] ? h[k][i] : null));
+    const when = i => `${dayName(U.bkkDateStr(xs[i]), S.today)} ${U.bkkHM(xs[i])}`;
+    const fmt = (v, d = 0) => (v == null ? '–' : v.toFixed(d));
+    const charts = [
+      { id: 'mg-temp', title: 'อุณหภูมิ (°C)', spec: { series: [{ values: col('temperature_2m'), color: 'var(--s-temp)' }], minSpan: 4, tip: i => `${when(i)} · ${fmt(col('temperature_2m')[i], 1)}°C` } },
+      { id: 'mg-rh', title: 'ความชื้นสัมพัทธ์ (%)', spec: { series: [{ values: col('relative_humidity_2m'), color: 'var(--s-rh)' }], yMax: 100, minSpan: 20, tip: i => `${when(i)} · ความชื้น ${fmt(col('relative_humidity_2m')[i])}%` } },
+      { id: 'mg-wind', title: 'ลม (กม./ชม.)', legend: '<span><i class="sw" style="background:var(--s-wind)"></i> ลมเฉลี่ย</span><span><i class="sw" style="background:var(--s-gust)"></i> ลมกระโชก</span>', spec: { series: [{ values: col('wind_speed_10m'), color: 'var(--s-wind)' }, { values: col('wind_gusts_10m'), color: 'var(--s-gust)', width: 1.5 }], zero: true, minSpan: 10, tip: i => `${when(i)} · เฉลี่ย ${fmt(col('wind_speed_10m')[i])} · กระโชก ${fmt(col('wind_gusts_10m')[i])} กม./ชม.` } },
+    ];
+    if (h.cloud_cover) charts.push({ id: 'mg-cloud', title: 'เมฆปกคลุม (%)', spec: { series: [{ values: col('cloud_cover'), color: 'var(--s-cloud)', area: true }], yMin: 0, yMax: 100, tip: i => `${when(i)} · เมฆ ${fmt(col('cloud_cover')[i])}%` } });
+    el.innerHTML = charts.map(c => `<div class="mg"><h3>${c.title}</h3><div id="${c.id}"></div>${c.legend ? `<div class="legend row">${c.legend}</div>` : ''}</div>`).join('')
+      + '<p class="note">แตะหรือชี้ที่กราฟเพื่อดูค่า · เส้นตั้งสีเข้ม = ตอนนี้ · เส้นตั้งจาง = เที่ยงคืน · ค่าจากโมเดลหลักของ Open-Meteo (ไม่ใช่ ensemble)</p>';
+    for (const c of charts) WX.charts.line($(c.id), { xs, nowMs: S.now, height: 110, title: c.title, ...c.spec });
+  }
+
+  // ============ ความเห็นของแต่ละระบบพยากรณ์ ============
+  function renderModels(S, el) {
+    if (!S.ens) { el.innerHTML = '<p class="muted">ต้องใช้ข้อมูล ensemble</p>'; return; }
+    const dates = Array.from({ length: E.CFG.DETAILED_DAYS }, (_, i) => U.addDays(S.today, i));
+    const short = Object.fromEntries(WX.sources.ENSEMBLES.map(e => [e.id, e.short]));
+    const cell = (ens, d, name) => {
+      const dist = E.dailyDist(ens, d);
+      return { v: dist ? dist.probs[1] : null, title: dist ? `${name} · ${dayName(d, S.today)} ${dayShort(d)}: โอกาสฝน ${U.fmtPct(dist.probs[1])}${dist.cond ? ` · ถ้าตก ~${U.fmtMm(dist.cond.p50)} มม.` : ''} (${dist.n} ชุด)` : '' };
+    };
+    const rows = S.ens.models.map(m => {
+      const sub = E.subEnsemble(S.ens, [m.id]);
+      return { label: short[m.id] || m.label, cells: dates.map(d => cell(sub, d, short[m.id] || m.label)) };
+    });
+    rows.push({ label: 'รวม', total: true, cells: dates.map(d => cell(S.ens, d, 'รวม')) });
+    WX.charts.heat(el, {
+      cols: dates.map(d => `${d === S.today ? 'วันนี้' : U.bkkDayLabel(d, { weekday: 'short' })}<br><small>${U.bkkDayLabel(d, { day: 'numeric' })}</small>`),
+      rows, caption: 'โอกาสฝนรายวันแยกตามระบบพยากรณ์',
+    });
+    el.insertAdjacentHTML('beforeend', '<p class="note">ตัวเลข = โอกาสฝนรวมทั้งวัน ≥ 1 มม. ของแต่ละระบบ · ถ้าสีในคอลัมน์เดียวกันต่างกันมาก แปลว่าระบบเห็นไม่ตรงกัน ความเชื่อมั่นต่ำ · แถวรวมให้น้ำหนักเท่ากันทุกระบบ</p>');
+  }
+
+  // ============ ฝนสะสม (fan chart) ============
+  function renderFan(S, el) {
+    if (!S.ens) { el.innerHTML = '<p class="muted">ต้องใช้ข้อมูล ensemble</p>'; return; }
+    const fan = E.cumulativeFan(S.ens, U.bkkToEpoch(S.today), 168, 3);
+    if (!fan) { el.innerHTML = '<p class="muted">ข้อมูลไม่พอ</p>'; return; }
+    const xs = fan.map(f => f.ms);
+    const q = k => fan.map(f => f[k]);
+    const target = S.loc.coconut ? WX.coconut.WEEKLY_TARGET_MM : null;
+    el.innerHTML = '<div id="fan-chart"></div><div class="legend row"><span><i class="sw" style="background:var(--r3)"></i> ค่ากลาง</span><span><i class="sw" style="background:var(--r2);opacity:.45"></i> 50% ของผลพยากรณ์</span><span><i class="sw" style="background:var(--r1);opacity:.45"></i> 80% ของผลพยากรณ์</span></div><div id="fan-sum"></div>';
+    WX.charts.line($('fan-chart'), {
+      xs, height: 180, zero: true, minSpan: 10, xTicks: 'days', nowMs: S.now, title: 'ฝนสะสม 7 วัน',
+      bands: [{ lo: q('p10'), hi: q('p90'), color: 'var(--r1)', opacity: 0.35 }, { lo: q('p25'), hi: q('p75'), color: 'var(--r2)', opacity: 0.35 }],
+      series: [{ values: q('p50'), color: 'var(--r3)' }],
+      refs: target ? [{ y: target, label: `เป้ามะพร้าว ${target} มม.` }] : [],
+      tip: i => `ถึง ${dayName(U.bkkDateStr(xs[i] - 1), S.today)} ${U.bkkHMEnd(xs[i])} · สะสมค่ากลาง ${U.fmtMm(fan[i].p50)} มม. · 50%: ${U.fmtMm(fan[i].p25)}–${U.fmtMm(fan[i].p75)} · 80%: ${U.fmtMm(fan[i].p10)}–${U.fmtMm(fan[i].p90)}`,
+    });
+    const w = S.week;
+    if (w) {
+      $('fan-sum').innerHTML = `<div class="stat-row">${[10, 25, 50].map(t => `<div class="stat"><b>${U.fmtPct(w.probs[t])}</b><span>โอกาสฝนรวม 7 วัน ≥ ${t} มม.</span></div>`).join('')}</div>
+        <p class="note">แตะที่กราฟเพื่อดูค่า · แถบกว้างขึ้นเรื่อย ๆ = ยิ่งไกลยิ่งไม่แน่นอน · นับตั้งแต่ 00:00 วันนี้ ถึงสิ้นวันที่ 7 (ตัวเลขเดียวกับแผงน้ำมะพร้าว)</p>`;
+    }
+  }
+
   function renderAll(S) {
     renderStatus(S);
     renderNow(S, $('now'));
     renderNext(S, $('next-rain'));
+    renderInsights(S, $('insights'));
+    if (WX.radarMap) WX.radarMap.render(S);
     renderTimeline(S, $('timeline'));
+    renderMeteogram(S, $('meteogram'));
     renderDaily(S, $('daily'));
+    renderModels(S, $('models'));
+    renderFan(S, $('fan'));
     renderOutlook(S, $('outlook'));
     if (S.loc.coconut) WX.coconut.render($('coconut'), { week: S.week, actual: S.actual, detDaily: S.detDaily });
     renderHistory(S, $('history'));
@@ -383,5 +480,5 @@
     bind('history', 'hist-detail', '.h-col');
   }
 
-  WX.ui = { renderAll, renderNow, renderNext, renderStatus, modelIsRainy, initInteractions };
+  WX.ui = { renderAll, renderNow, renderNext, renderStatus, modelIsRainy, initInteractions, backtestRows };
 })(typeof window !== 'undefined' ? window : globalThis);

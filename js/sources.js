@@ -68,16 +68,20 @@
     return { intensity: Number(r.intensity), desc: r.description || '' };
   }
 
+  // รายการเฟรมเก็บไว้เสมอสำหรับแผนที่ (แสดงภาพได้แม้เบราว์เซอร์ไม่ยอมให้อ่านค่าพิกเซล)
   async function radar(loc) {
     const meta = await fetchJSON(WX.radar.HOST_META, 10000);
-    const loaded = await WX.radar.loadFrames(meta, loc.lat, loc.lon);
-    return { ...loaded, generated: meta.generated ? meta.generated * 1000 : null };
+    const pick = arr => (arr || []).filter(f => f && f.path && f.time).map(f => ({ time: f.time, path: f.path }));
+    const frameMeta = { host: meta.host || 'https://tilecache.rainviewer.com', past: pick(meta.radar && meta.radar.past), nowcast: pick(meta.radar && meta.radar.nowcast) };
+    let loaded = null, decodeError = null;
+    try { loaded = await WX.radar.loadFrames(meta, loc.lat, loc.lon); } catch (e) { decodeError = (e && e.message) || String(e); }
+    return { meta: frameMeta, ...(loaded || {}), decodeError, generated: meta.generated ? meta.generated * 1000 : null };
   }
 
   function forecast(loc) {
     const base = `${OM.forecast}?latitude=${loc.lat}&longitude=${loc.lon}&${TZ_Q}&forecast_days=14&past_days=7`;
     const full = `&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m,wind_gusts_10m,wind_direction_10m,cloud_cover`
-      + `&hourly=temperature_2m,relative_humidity_2m,precipitation,precipitation_probability,weather_code,cape,wind_speed_10m,wind_gusts_10m`
+      + `&hourly=temperature_2m,relative_humidity_2m,precipitation,precipitation_probability,weather_code,cape,wind_speed_10m,wind_gusts_10m,cloud_cover`
       + `&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max`;
     const min = `&current=temperature_2m,relative_humidity_2m,precipitation,weather_code,wind_speed_10m`
       + `&hourly=temperature_2m,relative_humidity_2m,precipitation,precipitation_probability,weather_code,wind_speed_10m`

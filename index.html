@@ -5,7 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#1c5cab">
   <title>🌴 พยากรณ์ฝน — แปลงมะพร้าวคลองวาฬ</title>
-  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+  <link rel="stylesheet" href="css/style.css?v=2.1.0">
 </head>
 <body>
   <div class="page">
@@ -55,24 +56,62 @@
       <button id="refresh-now" type="button">🔄 รีเฟรช</button>
     </div>
 
+    <nav class="jump" aria-label="ไปยังส่วนต่าง ๆ">
+      <a href="#now">ตอนนี้</a><a href="#sec-radar">เรดาร์</a><a href="#sec-insights">บทวิเคราะห์</a><a href="#sec-48">48 ชม.</a><a href="#sec-7">7 วัน</a><a href="#sec-models">เทียบระบบ</a><a href="#sec-fan">ฝนสะสม</a><a href="#coconut-card">มะพร้าว</a><a href="#sec-hist">ย้อนหลัง</a>
+    </nav>
+
     <noscript><p class="card">ต้องเปิด JavaScript เพื่อดูพยากรณ์</p></noscript>
 
     <main>
       <section id="now" class="card hero" aria-live="polite"><p class="muted">กำลังโหลด...</p></section>
+
+      <section class="card" id="sec-radar" aria-labelledby="h-radar">
+        <h2 id="h-radar">แผนที่เรดาร์ฝน <span class="sub">~70 นาทีล่าสุด เล่นวน</span></h2>
+        <div class="radar-wrap">
+          <div id="radar-map" class="radar-map" role="img" aria-label="แผนที่เรดาร์ฝนรอบพื้นที่"></div>
+          <p id="radar-map-status" class="radar-status">กำลังโหลดแผนที่...</p>
+        </div>
+        <div class="radar-ctl">
+          <button id="radar-play" type="button" aria-label="หยุดภาพเคลื่อนไหว">⏸</button>
+          <input id="radar-slider" type="range" min="0" max="0" value="0" aria-label="เลือกเวลาภาพเรดาร์">
+          <span id="radar-time" class="radar-time">–</span>
+        </div>
+        <p class="note">● จุดแดง = พื้นที่ของคุณ · วงกลม = รัศมี 10 และ 25 กม. · เส้นส้ม = ทิศที่เมฆฝนเคลื่อนเข้ามา (ระยะ 30 นาที) · สียิ่งเข้มยิ่งฝนแรง</p>
+      </section>
 
       <section class="card" aria-labelledby="h-next">
         <h2 id="h-next">แนวโน้มวันนี้และฝนก้อนถัดไป</h2>
         <div id="next-rain"><p class="muted">กำลังโหลด...</p></div>
       </section>
 
-      <section class="card" aria-labelledby="h-48">
-        <h2 id="h-48">48 ชั่วโมงข้างหน้า <span class="sub">รายชั่วโมง</span></h2>
+      <section class="card" id="sec-insights" aria-labelledby="h-ins">
+        <h2 id="h-ins">บทวิเคราะห์ <span class="sub">สรุปจากข้อมูลทั้งหมด</span></h2>
+        <div id="insights"><p class="muted">กำลังโหลด...</p></div>
+      </section>
+
+      <section class="card" id="sec-48" aria-labelledby="h-48">
+        <h2 id="h-48">48 ชั่วโมงข้างหน้า <span class="sub">โอกาสฝนรายชั่วโมง</span></h2>
         <div id="timeline"><p class="muted">กำลังโหลด...</p></div>
       </section>
 
-      <section class="card" aria-labelledby="h-7">
+      <section class="card" aria-labelledby="h-mg">
+        <h2 id="h-mg">สภาพอากาศรายชั่วโมง <span class="sub">48 ชม.</span></h2>
+        <div id="meteogram"><p class="muted">กำลังโหลด...</p></div>
+      </section>
+
+      <section class="card" id="sec-7" aria-labelledby="h-7">
         <h2 id="h-7">7 วันข้างหน้า</h2>
         <div id="daily"><p class="muted">กำลังโหลด...</p></div>
+      </section>
+
+      <section class="card" id="sec-models" aria-labelledby="h-models">
+        <h2 id="h-models">ระบบพยากรณ์เห็นตรงกันไหม <span class="sub">โอกาสฝนรายวันแยกระบบ</span></h2>
+        <div id="models"><p class="muted">กำลังโหลด...</p></div>
+      </section>
+
+      <section class="card" id="sec-fan" aria-labelledby="h-fan">
+        <h2 id="h-fan">ฝนสะสม 7 วัน <span class="sub">ช่วงความไม่แน่นอน</span></h2>
+        <div id="fan"><p class="muted">กำลังโหลด...</p></div>
       </section>
 
       <section class="card" aria-labelledby="h-14">
@@ -85,7 +124,7 @@
         <div id="coconut"><p class="muted">กำลังโหลด...</p></div>
       </section>
 
-      <section class="card" aria-labelledby="h-hist">
+      <section class="card" id="sec-hist" aria-labelledby="h-hist">
         <h2 id="h-hist">ฝนรายวัน <span class="sub">ย้อนหลัง 14 วัน → พยากรณ์ 7 วัน (มม.)</span></h2>
         <div id="history"><p class="muted">กำลังโหลด...</p></div>
       </section>
@@ -106,19 +145,24 @@
     </main>
 
     <footer>
-      ข้อมูล: Longdo Weather (เรดาร์) · RainViewer (เรดาร์คอมโพสิต) · Open-Meteo (ECMWF, NOAA GEFS, DWD ICON, ERA5-Land)<br>
+      ข้อมูล: Longdo Weather (เรดาร์) · RainViewer (เรดาร์คอมโพสิต) · Open-Meteo (ECMWF, NOAA GEFS, DWD ICON, ERA5-Land) · แผนที่ © OpenStreetMap<br>
       เวลาทั้งหมดเป็นเวลาไทย (Asia/Bangkok) · พยากรณ์ฝนเป็นความน่าจะเป็น ไม่ใช่คำยืนยัน<br>
-      <a href="flood-watch.html">🌊 เฝ้าระวังน้ำท่วมทั่วไทย</a>
+      <a href="flood-watch.html">🌊 เฝ้าระวังน้ำท่วมทั่วไทย</a><br>
+      <span id="app-version" class="version">เวอร์ชัน 2.1.0</span>
     </footer>
   </div>
 
-  <script src="js/util.js"></script>
-  <script src="js/engine.js"></script>
-  <script src="js/radar.js"></script>
-  <script src="js/sources.js"></script>
-  <script src="js/locations.js"></script>
-  <script src="js/coconut.js"></script>
-  <script src="js/ui.js"></script>
-  <script src="js/main.js"></script>
+  <script src="js/util.js?v=2.1.0"></script>
+  <script src="js/engine.js?v=2.1.0"></script>
+  <script src="js/radar.js?v=2.1.0"></script>
+  <script src="js/sources.js?v=2.1.0"></script>
+  <script src="js/locations.js?v=2.1.0"></script>
+  <script src="js/coconut.js?v=2.1.0"></script>
+  <script src="js/analysis.js?v=2.1.0"></script>
+  <script src="js/charts.js?v=2.1.0"></script>
+  <script src="js/radarmap.js?v=2.1.0"></script>
+  <script src="js/ui.js?v=2.1.0"></script>
+  <script src="js/main.js?v=2.1.0"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin="" async onload="WX.radarMap.libLoaded()" onerror="WX.radarMap.libError()"></script>
 </body>
 </html>

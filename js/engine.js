@@ -167,11 +167,11 @@
     return d ? { pAny: d.probs[0.5], n: d.n } : null;
   }
 
-  function rangeTotal(ens, dates) {
+  function rangeTotal(ens, dates, thresholds = []) {
     const idxs = [];
     for (const d of dates) idxs.push(...(ens.byDate.get(d) || []));
     if (!idxs.length) return null;
-    const dist = distribution(samples(ens, idxs, Math.floor(idxs.length * 0.97), SUM), []);
+    const dist = distribution(samples(ens, idxs, Math.floor(idxs.length * 0.97), SUM), thresholds);
     return dist ? { ...dist, days: dates.length } : null;
   }
 
@@ -397,8 +397,41 @@
     return { state, icon, title, lines: lines.filter(Boolean), sources, observed: lOk || rOk };
   }
 
+  function subEnsemble(ens, ids) {
+    const models = ens.models.filter(m => ids.includes(m.id));
+    return models.length ? { ...ens, models } : null;
+  }
+
+  // ฝนสะสมนับจากตอนนี้ แยกรายสมาชิกแล้วหาควอนไทล์ทุก stepH ชั่วโมง — เห็นว่าความไม่แน่นอนบานออกเร็วแค่ไหน
+  function cumulativeFan(ens, fromMs, hours = 168, stepH = 3) {
+    const idxs = [];
+    for (let i = 0; i < ens.epochs.length && idxs.length < hours; i++) if (ens.epochs[i] > fromMs) idxs.push(i);
+    if (!idxs.length) return null;
+    const cum = ens.models.map(m => m.members.map(mem => {
+      const out = new Array(idxs.length);
+      let acc = 0, ok = true;
+      idxs.forEach((i, k) => {
+        if (mem[i] == null) ok = false; else acc += mem[i];
+        out[k] = ok ? acc : null;
+      });
+      return out;
+    }));
+    const points = [{ ms: Math.max(fromMs, ens.slotStart[idxs[0]]), p10: 0, p25: 0, p50: 0, p75: 0, p90: 0, n: 0 }];
+    for (let k = stepH - 1; k < idxs.length; k += stepH) {
+      const per = [];
+      ens.models.forEach((m, mi) => {
+        const vals = cum[mi].map(a => a[k]).filter(v => v != null);
+        if (vals.length) per.push({ m, vals });
+      });
+      const d = distribution(normalizeSamples(per), []);
+      if (!d) break;
+      points.push({ ms: ens.epochs[idxs[k]], p10: d.p10, p25: d.p25, p50: d.p50, p75: d.p75, p90: d.p90, n: d.n });
+    }
+    return points.length > 1 ? points : null;
+  }
+
   WX.engine = {
-    CFG, buildEnsemble, weightedQuantile,
+    CFG, buildEnsemble, weightedQuantile, subEnsemble, cumulativeFan,
     hourDist, dailyDist, periodDist, rangeTotal, nextRainOnset, findWindows,
     describeProb, classifyHour, classifyDay, capeLevel, capeMaxByDate,
     dailyFromHourly, scoreForecasts, nowVerdict,

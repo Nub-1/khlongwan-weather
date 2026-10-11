@@ -37,8 +37,9 @@
     const fc = res.forecast && res.forecast.ok ? res.forecast.data : null;
     const ens = buildEnsemble();
 
-    const radarOk = res.radar && res.radar.ok;
-    const radar = radarOk ? WX.radar.analyze(res.radar.data.frames, res.radar.data.geo, now) : { ok: false };
+    const rd = res.radar && res.radar.ok ? res.radar.data : null;
+    const radar = rd && rd.frames ? WX.radar.analyze(rd.frames, rd.geo, now)
+      : rd && rd.decodeError ? { ok: false, reason: 'decode_error', message: rd.decodeError } : { ok: false };
     const lg = res.longdo_rain;
     const cur = fc && fc.current;
     const verdict = E.nowVerdict({
@@ -78,8 +79,12 @@
       }
     }
 
-    const week = ens ? E.rangeTotal(ens, Array.from({ length: 7 }, (_, i) => U.addDays(today, i))) : null;
-    const S = { now, today, loc, res, fc, ens, radar, verdict, actual, detDaily, instability, week, debug: DEBUG };
+    const week = ens ? E.rangeTotal(ens, Array.from({ length: 7 }, (_, i) => U.addDays(today, i)), [10, 25, 50]) : null;
+    const pastDates = Array.from({ length: 7 }, (_, i) => U.addDays(today, i - 7));
+    const past7Missing = pastDates.filter(d => !actual.has(d)).length;
+    const past7 = pastDates.reduce((a, d) => a + (actual.get(d) ?? 0), 0);
+    const backtest = WX.ui.backtestRows(res);
+    const S = { now, today, loc, res, fc, ens, radar, verdict, actual, detDaily, instability, week, past7, past7Missing, backtest, debug: DEBUG };
     if (DEBUG) {
       S.debugInfo = {
         radar: { ...radar, stats: radar.stats },
@@ -111,6 +116,7 @@
     WX.ui.renderStatus(S);
     WX.ui.renderNow(S, $('now'));
     WX.ui.renderNext(S, $('next-rain'));
+    if (WX.radarMap) WX.radarMap.render(S);
   }
 
   function scheduleRender(full) {
@@ -161,6 +167,8 @@
   }
 
   function boot() {
+    const v = $('app-version');
+    if (v) v.textContent = `เวอร์ชัน ${WX.VERSION} (${WX.RELEASED})`;
     loc = WX.locations.init(onLocation);
     WX.ui.initInteractions();
     fullRender();
