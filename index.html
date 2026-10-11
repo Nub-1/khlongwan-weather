@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#1c5cab">
   <title>🌴 พยากรณ์ฝน — แปลงมะพร้าวคลองวาฬ</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
-  <link rel="stylesheet" href="css/style.css?v=2.1.0">
+  <link rel="stylesheet" href="css/style.css?v=2.1.1">
 </head>
 <body>
   <div class="page">
@@ -66,17 +66,19 @@
       <section id="now" class="card hero" aria-live="polite"><p class="muted">กำลังโหลด...</p></section>
 
       <section class="card" id="sec-radar" aria-labelledby="h-radar">
-        <h2 id="h-radar">แผนที่เรดาร์ฝน <span class="sub">~70 นาทีล่าสุด เล่นวน</span></h2>
+        <h2 id="h-radar">แผนที่เรดาร์ฝน <span class="sub">~50 นาทีล่าสุด เล่นวน</span></h2>
         <div class="radar-wrap">
           <div id="radar-map" class="radar-map" role="img" aria-label="แผนที่เรดาร์ฝนรอบพื้นที่"></div>
           <p id="radar-map-status" class="radar-status">กำลังโหลดแผนที่...</p>
         </div>
+        <p id="radar-info" class="radar-info" aria-live="polite"></p>
         <div class="radar-ctl">
           <button id="radar-play" type="button" aria-label="หยุดภาพเคลื่อนไหว">⏸</button>
           <input id="radar-slider" type="range" min="0" max="0" value="0" aria-label="เลือกเวลาภาพเรดาร์">
           <span id="radar-time" class="radar-time">–</span>
         </div>
-        <p class="note">● จุดแดง = พื้นที่ของคุณ · วงกลม = รัศมี 10 และ 25 กม. · เส้นส้ม = ทิศที่เมฆฝนเคลื่อนเข้ามา (ระยะ 30 นาที) · สียิ่งเข้มยิ่งฝนแรง</p>
+        <p class="note">● จุดแดง = พื้นที่ของคุณ · วงกลม = รัศมี 10 และ 25 กม. · เส้นส้ม = ทิศที่เมฆฝนเคลื่อนเข้ามา (ระยะ 30 นาที)</p>
+        <div class="legend row radar-legend"><span><i class="sw" style="background:#51c5e8"></i>เบามาก</span><span><i class="sw" style="background:#00699c"></i>เบา</span><span><i class="sw" style="background:#ffd200"></i>ปานกลาง</span><span><i class="sw" style="background:#ff9500"></i>หนัก</span><span><i class="sw" style="background:#cd0d00"></i>หนักมาก</span><span><i class="sw" style="background:#ff81ff"></i>รุนแรง</span></div>
       </section>
 
       <section class="card" aria-labelledby="h-next">
@@ -152,17 +154,17 @@
     </footer>
   </div>
 
-  <script src="js/util.js?v=2.1.0"></script>
-  <script src="js/engine.js?v=2.1.0"></script>
-  <script src="js/radar.js?v=2.1.0"></script>
-  <script src="js/sources.js?v=2.1.0"></script>
-  <script src="js/locations.js?v=2.1.0"></script>
-  <script src="js/coconut.js?v=2.1.0"></script>
-  <script src="js/analysis.js?v=2.1.0"></script>
-  <script src="js/charts.js?v=2.1.0"></script>
-  <script src="js/radarmap.js?v=2.1.0"></script>
-  <script src="js/ui.js?v=2.1.0"></script>
-  <script src="js/main.js?v=2.1.0"></script>
+  <script src="js/util.js?v=2.1.1"></script>
+  <script src="js/engine.js?v=2.1.1"></script>
+  <script src="js/radar.js?v=2.1.1"></script>
+  <script src="js/sources.js?v=2.1.1"></script>
+  <script src="js/locations.js?v=2.1.1"></script>
+  <script src="js/coconut.js?v=2.1.1"></script>
+  <script src="js/analysis.js?v=2.1.1"></script>
+  <script src="js/charts.js?v=2.1.1"></script>
+  <script src="js/radarmap.js?v=2.1.1"></script>
+  <script src="js/ui.js?v=2.1.1"></script>
+  <script src="js/main.js?v=2.1.1"></script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin="" async onload="WX.radarMap.libLoaded()" onerror="WX.radarMap.libError()"></script>
 </body>
 </html>

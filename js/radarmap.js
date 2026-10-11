@@ -4,12 +4,13 @@
   const U = WX.util;
   const $ = id => document.getElementById(id);
 
-  const MAX_PAST = 8;     // ~70 นาทีล่าสุด — พอเห็นทิศทาง โดยไม่โหลดภาพมากเกินบนมือถือ
+  const MAX_PAST = 6;     // ~50 นาทีล่าสุด — RainViewer จำกัด ~100 คำขอ/นาที/IP (มือถือหลายเครื่องอาจใช้ IP เดียวกัน)
   const STEP_MS = 700;
 
   let map = null, marker = null, rings = [], arrow = null;
   let layers = [], frames = [], idx = 0, sig = '', locKey = '';
   let timer = null, playing = true, hold = 0, lastS = null, libFailed = false;
+  let tileOk = [], tileErr = [];
 
   const textEl = s => { const e = document.createElement('span'); e.textContent = s; return e; };
 
@@ -18,7 +19,7 @@
     if (!map) {
       map = L.map($('radar-map'), {
         zoomControl: true, scrollWheelZoom: false, dragging: !L.Browser.mobile, tap: false,
-      }).setView([loc.lat, loc.lon], 8);
+      }).setView([loc.lat, loc.lon], 7);
       L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 12, attribution: '© OpenStreetMap · เรดาร์ © RainViewer',
       }).addTo(map);
@@ -29,7 +30,7 @@
     const key = `${loc.lat},${loc.lon}`;
     if (key !== locKey) {
       locKey = key;
-      map.setView([loc.lat, loc.lon], 8);
+      map.setView([loc.lat, loc.lon], 7);
       rings.forEach(r => r.remove());
       if (marker) marker.remove();
       rings = [10, 25].map(km => L.circle([loc.lat, loc.lon], { radius: km * 1000, color: '#52514e', weight: 1, opacity: 0.6, fill: false, interactive: false }).addTo(map));
@@ -49,10 +50,14 @@
     sig = s;
     layers.forEach(l => l.remove());
     frames = list;
-    // color 2 = โทนสีมาตรฐานสำหรับดูด้วยตา, 1_1 = เกลี่ยขอบ + แสดงหิมะ (ไม่มีผลในไทย)
-    layers = list.map(f => L.tileLayer(`${meta.host}${f.path}/256/{z}/{x}/{y}/2/1_1.png`, {
+    // color 2 (Universal Blue) เป็นโทนเดียวที่เหลือ ; zoom ของภาพเรดาร์สูงสุด 7 ที่เกินจากนั้นขยายภาพเอา
+    tileOk = list.map(() => 0);
+    tileErr = list.map(() => 0);
+    layers = list.map((f, k) => L.tileLayer(`${meta.host}${f.path}/256/{z}/{x}/{y}/2/1_0.png`, {
       opacity: 0, maxNativeZoom: 7, maxZoom: 12, zIndex: 5,
-    }).addTo(map));
+    }).on('tileload', () => { tileOk[k]++; if (k === idx) updateInfo(); })
+      .on('tileerror', () => { tileErr[k]++; if (k === idx) updateInfo(); })
+      .addTo(map));
     const slider = $('radar-slider');
     slider.max = String(Math.max(0, list.length - 1));
     idx = Math.max(0, list.filter(f => f.kind === 'past').length - 1);
@@ -70,6 +75,25 @@
       : U.fmtAgo(ms);
     $('radar-time').textContent = `${U.bkkHM(ms)} น. · ${rel}`;
     $('radar-slider').value = String(idx);
+    updateInfo();
+  }
+
+  // บอกให้ชัดว่า "ไม่เห็นฝน" เพราะไม่มีฝนจริง หรือเพราะโหลดภาพไม่สำเร็จ
+  function updateInfo() {
+    const out = $('radar-info');
+    if (!out || !lastS) return;
+    const ok = tileOk[idx] || 0, err = tileErr[idx] || 0;
+    const parts = [];
+    if (err && !ok) parts.push(`⚠️ โหลดภาพเรดาร์ช่วงเวลานี้ไม่สำเร็จ (${err} ภาพ) — RainViewer อาจจำกัดจำนวนคำขอ ลองใหม่ในอีกสักครู่`);
+    const a = lastS.radar;
+    if (a && a.ok) {
+      if (a.atPointDbz != null && a.atPointDbz >= U.RAIN_DBZ) parts.push(`📡 ภาพล่าสุด ${U.bkkHM(a.frameTimeMs)} น.: มีฝนตกที่จุดนี้ (${U.dbzClass(a.atPointDbz).label})`);
+      else if (a.nearest) parts.push(`📡 ภาพล่าสุด ${U.bkkHM(a.frameTimeMs)} น.: ฝนใกล้สุดห่าง ~${Math.round(a.nearest.distKm)} กม. ทาง${U.compassTh(a.nearest.bearingDeg)}`);
+      else parts.push(`📡 ภาพล่าสุด ${U.bkkHM(a.frameTimeMs)} น.: ไม่พบฝนในรัศมี ~${Math.round(a.windowKm / 2)} กม. รอบจุดนี้ — ถ้าบนแผนที่ไม่มีสี แปลว่าตอนนี้ไม่มีฝนจริง`);
+    } else if (a && a.reason) {
+      parts.push(`ℹ️ ประเมินฝนรอบจุดจากภาพเรดาร์ไม่ได้ (${a.message || a.reason}) แต่ภาพบนแผนที่ยังดูได้`);
+    }
+    out.textContent = parts.join('\n');
   }
 
   function tick() {

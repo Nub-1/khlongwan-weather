@@ -328,3 +328,6 @@ table.heat tr.total td { outline: 1px solid var(--ink2); outline-offset: -1px; }
 
 .version { font-size: 0.75rem; color: var(--axis-ink); }
 footer a { color: var(--r3); }
+
+.radar-info { margin: 8px 0 0; font-size: 0.85rem; white-space: pre-line; }
+.radar-info:empty { display: none; }

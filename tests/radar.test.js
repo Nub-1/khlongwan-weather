@@ -102,3 +102,12 @@ test('arrival รายงานความแรงสูงสุดที่
   assert.ok(a.arrival.peakDbz >= a.arrival.dbz);
   assert.ok(a.arrival.peakDbz > 30, `peak ${a.arrival.peakDbz}`);
 });
+
+test('ถอดสี Universal Blue เป็น dBZ ตัวแทนของแต่ละระดับ', () => {
+  for (const L of R.UB_LEVELS) assert.equal(R.decodeUB(...L.rgb, 255), L.dbz);
+  // สีกลางระหว่างฟ้าอ่อนกับน้ำเงิน (ภาพเกลี่ยขอบ) → ยังเป็นระดับฝนเบา
+  assert.ok([18, 27].includes(R.decodeUB(40, 151, 194, 255)));
+  assert.equal(R.decodeUB(0, 0, 0, 0), R.NOECHO);
+  assert.equal(R.decodeUB(81, 197, 232, 20), R.NOECHO);
+  assert.equal(R.decodeUB(0, 255, 0, 255), R.OFF_PALETTE);
+});
