@@ -1,0 +1,781 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🌊 เฝ้าระวังน้ำท่วมทั่วไทย</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Sarabun', 'Garuda', system-ui, -apple-system, sans-serif;
+    background: linear-gradient(135deg, #0f2942 0%, #1e5288 100%);
+    min-height: 100vh;
+    color: #1a202c;
+    padding: 16px;
+  }
+  .container { max-width: 1280px; margin: 0 auto; }
+  a { color: inherit; }
+
+  header {
+    background: rgba(255,255,255,0.96);
+    backdrop-filter: blur(10px);
+    border-radius: 16px;
+    padding: 20px 28px;
+    margin-bottom: 16px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+  }
+  header h1 {
+    color: #0f2942;
+    font-size: 1.7em;
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .nav-link {
+    font-size: 0.4em;
+    font-weight: 500;
+    background: #eef2f7;
+    color: #1e5288;
+    padding: 5px 10px;
+    border-radius: 10px;
+    text-decoration: none;
+    white-space: nowrap;
+  }
+  .subtitle { color: #4a5568; font-size: 0.9em; margin-bottom: 14px; }
+
+  .control-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+  }
+  .control-bar select, .control-bar input[type=text] {
+    padding: 9px 12px;
+    border-radius: 10px;
+    border: 1px solid #cbd5e1;
+    font-size: 0.95em;
+    font-family: inherit;
+  }
+  .btn {
+    padding: 9px 16px;
+    border-radius: 10px;
+    border: none;
+    font-size: 0.95em;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .btn-primary { background: #1e5288; color: #fff; }
+  .btn-primary:hover { background: #163f6b; }
+  .btn-ghost { background: #eef2f7; color: #1e5288; }
+  .btn-ghost:hover { background: #dfe7f0; }
+  .btn:disabled { opacity: .55; cursor: not-allowed; }
+
+  #geo-status { font-size: 0.85em; color: #4a5568; margin-left: 4px; }
+
+  /* ===== Alert banner ===== */
+  .alert-banner {
+    border-radius: 16px;
+    padding: 16px 22px;
+    margin-bottom: 16px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    color: #fff;
+    font-weight: 600;
+  }
+  .alert-banner .lvl-icon { font-size: 2em; }
+  .alert-banner .lvl-text { font-size: 1.05em; }
+  .alert-banner .lvl-sub { font-weight: 400; font-size: 0.85em; opacity: 0.9; margin-top: 2px; }
+  .level-0 { background: linear-gradient(135deg,#0d9488,#10b981); }
+  .level-1 { background: linear-gradient(135deg,#d97706,#f59e0b); }
+  .level-2 { background: linear-gradient(135deg,#ea580c,#f97316); }
+  .level-3 { background: linear-gradient(135deg,#b91c1c,#dc2626); }
+  .level-x { background: linear-gradient(135deg,#475569,#64748b); }
+
+  /* ===== Grid / cards ===== */
+  .grid { display: grid; gap: 16px; margin-bottom: 16px; }
+  .grid-4 { grid-template-columns: repeat(4, 1fr); }
+  .grid-2 { grid-template-columns: 2fr 1fr; }
+  @media (max-width: 900px) { .grid-4 { grid-template-columns: repeat(2,1fr); } .grid-2 { grid-template-columns: 1fr; } }
+
+  .card {
+    background: rgba(255,255,255,0.96);
+    border-radius: 16px;
+    padding: 18px 20px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+  }
+  .card h3 { font-size: 0.85em; color: #4a5568; margin-bottom: 8px; font-weight: 600; }
+  .card .big { font-size: 1.7em; font-weight: 700; color: #0f2942; }
+  .card .unit { font-size: 0.5em; font-weight: 500; color: #718096; margin-left: 4px; }
+  .card .foot { font-size: 0.8em; color: #718096; margin-top: 6px; }
+
+  .badge { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 0.72em; font-weight: 700; color: #fff; }
+  .badge-0 { background: #10b981; }
+  .badge-1 { background: #f59e0b; }
+  .badge-2 { background: #f97316; }
+  .badge-3 { background: #dc2626; }
+
+  /* ===== AI panel ===== */
+  .ai-panel h2 { font-size: 1.05em; color: #0f2942; margin-bottom: 4px; }
+  .ai-panel .ai-tag { font-size: 0.72em; color: #718096; margin-bottom: 12px; display: block; }
+  .ai-panel .ai-line { display: flex; gap: 10px; margin-bottom: 10px; align-items: flex-start; line-height: 1.5; }
+  .ai-panel .ai-line .ico { font-size: 1.2em; }
+  .ai-panel ul { margin: 6px 0 0 0; padding-left: 20px; }
+  .ai-panel li { margin-bottom: 5px; line-height: 1.5; }
+  .ai-panel .prep-title { font-weight: 700; margin-top: 10px; color: #0f2942; }
+
+  /* ===== Map ===== */
+  #map { height: 460px; border-radius: 16px; overflow: hidden; box-shadow: 0 8px 32px rgba(0,0,0,0.2); margin-bottom: 16px; }
+  .map-legend {
+    display: flex; flex-wrap: wrap; gap: 12px; font-size: 0.8em; color: #4a5568; margin-top: -8px; margin-bottom: 16px;
+    background: rgba(255,255,255,0.9); padding: 8px 14px; border-radius: 12px;
+  }
+  .map-legend span { display: flex; align-items: center; gap: 5px; }
+  .dot { width: 11px; height: 11px; border-radius: 50%; display: inline-block; }
+
+  /* ===== Sources tabs ===== */
+  .tabs { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+  .tab-btn { padding: 7px 14px; border-radius: 999px; border: 1px solid #cbd5e1; background: #fff; cursor: pointer; font-size: 0.85em; font-family: inherit; font-weight: 600; color: #4a5568; }
+  .tab-btn.active { background: #1e5288; color: #fff; border-color: #1e5288; }
+  .source-list { display: grid; grid-template-columns: repeat(2,1fr); gap: 10px; }
+  @media (max-width: 700px) { .source-list { grid-template-columns: 1fr; } }
+  .source-item {
+    display: flex; gap: 10px; align-items: flex-start; text-decoration: none;
+    background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 12px 14px;
+  }
+  .source-item:hover { background: #eef2f7; }
+  .source-item .ico { font-size: 1.4em; }
+  .source-item .name { font-weight: 700; color: #0f2942; font-size: 0.92em; }
+  .source-item .desc { font-size: 0.8em; color: #64748b; margin-top: 2px; }
+
+  /* ===== Emergency numbers ===== */
+  .emg-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; }
+  @media (max-width: 700px) { .emg-grid { grid-template-columns: repeat(2,1fr); } }
+  .emg-item {
+    display: block; text-decoration: none; text-align: center;
+    background: #fff5f5; border: 1px solid #fed7d7; border-radius: 12px; padding: 12px 8px;
+  }
+  .emg-item .num { font-size: 1.4em; font-weight: 800; color: #c53030; }
+  .emg-item .lbl { font-size: 0.78em; color: #4a5568; margin-top: 3px; }
+
+  footer {
+    background: rgba(255,255,255,0.9);
+    border-radius: 16px;
+    padding: 16px 22px;
+    font-size: 0.82em;
+    color: #4a5568;
+    line-height: 1.6;
+    margin-top: 6px;
+  }
+  footer b { color: #0f2942; }
+
+  .loading { text-align: center; padding: 20px; color: #718096; }
+  .leaflet-popup-content { font-family: inherit; }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <h1>🌊 เฝ้าระวังน้ำท่วมทั่วไทย <a class="nav-link" href="index.html">🥥 ไปหน้าแปลงมะพร้าว</a></h1>
+    <div class="subtitle">ตรวจสอบความเสี่ยงน้ำท่วม พยากรณ์ฝน และเบอร์ฉุกเฉิน ตามตำแหน่งของคุณ — ข้อมูลฝน/อากาศจาก Open-Meteo, วิเคราะห์แนวโน้มด้วยกฎการประเมินฝนสะสม (รายละเอียดด้านล่าง)</div>
+
+    <div class="control-bar">
+      <button class="btn btn-primary" id="btn-gps">📍 ใช้ตำแหน่งของฉัน</button>
+      <select id="province-select"></select>
+      <input type="text" id="place-search" placeholder="ค้นหาสถานที่ เช่น หาดใหญ่, อยุธยา">
+      <button class="btn btn-ghost" id="btn-search">ค้นหา</button>
+      <button class="btn btn-ghost" id="btn-notify">🔔 เปิดการแจ้งเตือน</button>
+      <span id="geo-status"></span>
+    </div>
+  </header>
+
+  <div id="alert-banner" class="alert-banner level-x">
+    <div class="lvl-icon">⏳</div>
+    <div>
+      <div class="lvl-text" id="alert-text">กำลังโหลดข้อมูล...</div>
+      <div class="lvl-sub" id="alert-sub">เลือกพื้นที่หรือกดใช้ตำแหน่งของฉันเพื่อเริ่มตรวจสอบ</div>
+    </div>
+  </div>
+
+  <div class="grid grid-4">
+    <div class="card"><h3>☔ ฝนตอนนี้</h3><div class="big" id="card-now">–<span class="unit">มม./ชม.</span></div><div class="foot" id="card-now-foot">–</div></div>
+    <div class="card"><h3>📦 ฝนสะสม 3 วันล่าสุด</h3><div class="big" id="card-accum">–<span class="unit">มม.</span></div><div class="foot" id="card-accum-foot">–</div></div>
+    <div class="card"><h3>🎯 ฝนคาดการณ์ 24 ชม. ข้างหน้า</h3><div class="big" id="card-fc">–<span class="unit">มม.</span></div><div class="foot" id="card-fc-foot">–</div></div>
+    <div class="card"><h3>🚨 ระดับความเสี่ยง</h3><div class="big" id="card-risk">–</div><div class="foot" id="card-risk-foot">–</div></div>
+  </div>
+
+  <div class="grid grid-2">
+    <div class="card ai-panel">
+      <h2>🤖 ผู้ช่วยวิเคราะห์สถานการณ์น้ำ</h2>
+      <span class="ai-tag">ระบบกฎวิเคราะห์ฝน (rule-based) ทำงานในเบราว์เซอร์ของคุณ ไม่ใช่โมเดลภาษา AI — โปร่งใสเรื่องเกณฑ์ที่ใช้ ดูหมายเหตุท้ายหน้า</span>
+      <div id="ai-body"><div class="loading">รอข้อมูลพื้นที่...</div></div>
+    </div>
+    <div class="card">
+      <h3 style="font-size:0.95em; margin-bottom:10px;">📶 สัญญาณจากหลายโมเดลพยากรณ์ (พรุ่งนี้)</h3>
+      <div id="model-agreement"><div class="loading">–</div></div>
+    </div>
+  </div>
+
+  <div id="map"></div>
+  <div class="map-legend">
+    <span><span class="dot" style="background:#10b981"></span> ปกติ</span>
+    <span><span class="dot" style="background:#f59e0b"></span> เฝ้าระวัง</span>
+    <span><span class="dot" style="background:#f97316"></span> เตือนภัย</span>
+    <span><span class="dot" style="background:#dc2626"></span> วิกฤต/อันตราย</span>
+    <span><span class="dot" style="background:#64748b"></span> ยังไม่ได้ตรวจสอบ (กดหมุดเพื่อโหลด)</span>
+    <span>📍 ตำแหน่งของคุณ</span>
+  </div>
+
+  <div class="card" style="margin-bottom:16px;">
+    <h3 style="font-size:1em; margin-bottom:10px;">🗂️ แหล่งข้อมูลทางการ &amp; กล้อง CCTV สาธารณะ</h3>
+    <div class="tabs" id="source-tabs"></div>
+    <div class="source-list" id="source-list"></div>
+  </div>
+
+  <div class="card" style="margin-bottom:16px;">
+    <h3 style="font-size:1em; margin-bottom:10px;">📞 เบอร์โทรฉุกเฉิน (กดเพื่อโทร)</h3>
+    <div class="emg-grid" id="emg-grid"></div>
+  </div>
+
+  <footer>
+    <b>เรื่องความแม่นยำและขอบเขต:</b> ข้อมูลฝน/อากาศดึงจาก
+    <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a> (ฟรี ไม่ใช้คีย์) ทั้งพยากรณ์และย้อนหลัง 3 วัน
+    ส่วน "ระดับความเสี่ยง" คำนวณจาก<b>เกณฑ์ปริมาณฝนรายวันของกรมอุตุนิยมวิทยา</b> (เบา/ปานกลาง/หนัก/หนักมาก)
+    รวมกับฝนสะสม 3 วัน (ตัวแทนความอิ่มตัวของดิน/ความเสี่ยงน้ำล้น) — เป็น<b>เกณฑ์ประมาณการ</b> ไม่ใช่ตัวเลขทางการจากกรมชลประทาน/ปภ.
+    จึงควรใช้ประกอบกับประกาศทางการเสมอ ไม่ใช่แหล่งเดียวในการตัดสินใจ<br><br>
+    <b>กล้อง CCTV และข้อมูลระดับน้ำทางการ:</b> หน้านี้ยังไม่ฝังวิดีโอ/ข้อมูลสดจากหน่วยงานโดยตรง (ติด CORS/สิทธิ์การใช้งานของแต่ละเว็บ ต้องทดสอบจริงจากเบราว์เซอร์ในไทยก่อนฝัง) จึงให้เป็น<b>ลิงก์ไปหน้าทางการ</b>แทน — เป็นรายการที่ยังพัฒนาต่อได้<br><br>
+    <b>การแจ้งเตือน:</b> ปุ่ม "เปิดการแจ้งเตือน" ใช้ Web Notification API ทำงานเฉพาะขณะเปิดแท็บนี้ค้างไว้บนอุปกรณ์เครื่องนี้เท่านั้น
+    การแจ้งเตือนแบบ push ไปมือถือแม้ปิดแอป ต้องมี backend/server แยกต่างหาก (ยังไม่ได้ทำในเวอร์ชันนี้ — เป็นขั้นต่อไป)<br><br>
+    <b>ตำแหน่งจังหวัดบนแผนที่</b> เป็นพิกัดโดยประมาณของศูนย์กลางจังหวัด ใช้สำหรับภาพรวมเท่านั้น หากต้องการความแม่นยำระดับพื้นที่ ให้ใช้ปุ่ม "ใช้ตำแหน่งของฉัน" หรือค้นหาสถานที่โดยตรง<br><br>
+    Built with 💖 by Mew AI Assistant · Map: OpenStreetMap / Leaflet
+  </footer>
+
+</div>
+
+<script>
+/* =====================================================================
+   ข้อมูลพื้นฐาน: 77 จังหวัด (พิกัดโดยประมาณของศูนย์กลางจังหวัด/อำเภอเมือง)
+   ===================================================================== */
+const PROVINCES = [
+  {name:'กรุงเทพมหานคร', region:'กลาง', lat:13.7563, lon:100.5018},
+  {name:'นนทบุรี', region:'กลาง', lat:13.8622, lon:100.5142},
+  {name:'ปทุมธานี', region:'กลาง', lat:14.0208, lon:100.5250},
+  {name:'สมุทรปราการ', region:'กลาง', lat:13.5991, lon:100.5998},
+  {name:'นครปฐม', region:'กลาง', lat:13.8199, lon:100.0620},
+  {name:'สมุทรสาคร', region:'กลาง', lat:13.5475, lon:100.2740},
+  {name:'สมุทรสงคราม', region:'กลาง', lat:13.4098, lon:100.0022},
+  {name:'นครนายก', region:'กลาง', lat:14.2069, lon:101.2130},
+  {name:'ปราจีนบุรี', region:'ตะวันออก', lat:14.0509, lon:101.3730},
+  {name:'สระแก้ว', region:'ตะวันออก', lat:13.8241, lon:102.0645},
+  {name:'ฉะเชิงเทรา', region:'ตะวันออก', lat:13.6904, lon:101.0779},
+  {name:'ชลบุรี', region:'ตะวันออก', lat:13.3611, lon:100.9847},
+  {name:'ระยอง', region:'ตะวันออก', lat:12.6814, lon:101.2816},
+  {name:'จันทบุรี', region:'ตะวันออก', lat:12.6113, lon:102.1038},
+  {name:'ตราด', region:'ตะวันออก', lat:12.2428, lon:102.5178},
+  {name:'พระนครศรีอยุธยา', region:'กลาง', lat:14.3532, lon:100.5686},
+  {name:'อ่างทอง', region:'กลาง', lat:14.5896, lon:100.4548},
+  {name:'ลพบุรี', region:'กลาง', lat:14.7995, lon:100.6534},
+  {name:'สิงห์บุรี', region:'กลาง', lat:14.8907, lon:100.3968},
+  {name:'ชัยนาท', region:'กลาง', lat:15.1856, lon:100.1251},
+  {name:'สระบุรี', region:'กลาง', lat:14.5289, lon:100.9101},
+  {name:'สุพรรณบุรี', region:'กลาง', lat:14.4744, lon:100.1177},
+  {name:'กาญจนบุรี', region:'ตะวันตก', lat:14.0227, lon:99.5328},
+  {name:'ราชบุรี', region:'ตะวันตก', lat:13.5361, lon:99.8156},
+  {name:'เพชรบุรี', region:'ตะวันตก', lat:13.1119, lon:99.9398},
+  {name:'ประจวบคีรีขันธ์', region:'ตะวันตก', lat:11.8126, lon:99.7957},
+  {name:'เชียงใหม่', region:'เหนือ', lat:18.7883, lon:98.9853},
+  {name:'เชียงราย', region:'เหนือ', lat:19.9105, lon:99.8406},
+  {name:'แม่ฮ่องสอน', region:'เหนือ', lat:19.3020, lon:97.9654},
+  {name:'ลำปาง', region:'เหนือ', lat:18.2888, lon:99.4909},
+  {name:'ลำพูน', region:'เหนือ', lat:18.5744, lon:99.0087},
+  {name:'พะเยา', region:'เหนือ', lat:19.1664, lon:99.9019},
+  {name:'แพร่', region:'เหนือ', lat:18.1459, lon:100.1407},
+  {name:'น่าน', region:'เหนือ', lat:18.7756, lon:100.7730},
+  {name:'อุตรดิตถ์', region:'เหนือ', lat:17.6200, lon:100.0990},
+  {name:'สุโขทัย', region:'เหนือ', lat:17.0068, lon:99.8265},
+  {name:'ตาก', region:'เหนือ', lat:16.8698, lon:99.1257},
+  {name:'กำแพงเพชร', region:'เหนือ', lat:16.4827, lon:99.5227},
+  {name:'พิษณุโลก', region:'เหนือ', lat:16.8211, lon:100.2659},
+  {name:'พิจิตร', region:'เหนือ', lat:16.4429, lon:100.3487},
+  {name:'เพชรบูรณ์', region:'เหนือ', lat:16.4189, lon:101.1591},
+  {name:'นครสวรรค์', region:'เหนือ', lat:15.7047, lon:100.1372},
+  {name:'อุทัยธานี', region:'เหนือ', lat:15.3835, lon:100.0245},
+  {name:'นครราชสีมา', region:'อีสาน', lat:14.9799, lon:102.0977},
+  {name:'บุรีรัมย์', region:'อีสาน', lat:14.9930, lon:103.1029},
+  {name:'สุรินทร์', region:'อีสาน', lat:14.8827, lon:103.4936},
+  {name:'ศรีสะเกษ', region:'อีสาน', lat:15.1186, lon:104.3220},
+  {name:'อุบลราชธานี', region:'อีสาน', lat:15.2287, lon:104.8564},
+  {name:'ยโสธร', region:'อีสาน', lat:15.7929, lon:104.1451},
+  {name:'ชัยภูมิ', region:'อีสาน', lat:15.8068, lon:102.0316},
+  {name:'อำนาจเจริญ', region:'อีสาน', lat:15.8656, lon:104.6257},
+  {name:'บึงกาฬ', region:'อีสาน', lat:18.3609, lon:103.6465},
+  {name:'หนองบัวลำภู', region:'อีสาน', lat:17.2046, lon:102.4266},
+  {name:'ขอนแก่น', region:'อีสาน', lat:16.4419, lon:102.8360},
+  {name:'อุดรธานี', region:'อีสาน', lat:17.4139, lon:102.7873},
+  {name:'เลย', region:'อีสาน', lat:17.4860, lon:101.7223},
+  {name:'หนองคาย', region:'อีสาน', lat:17.8783, lon:102.7420},
+  {name:'มหาสารคาม', region:'อีสาน', lat:16.1850, lon:103.3005},
+  {name:'ร้อยเอ็ด', region:'อีสาน', lat:16.0538, lon:103.6520},
+  {name:'กาฬสินธุ์', region:'อีสาน', lat:16.4315, lon:103.5060},
+  {name:'สกลนคร', region:'อีสาน', lat:17.1545, lon:104.1348},
+  {name:'นครพนม', region:'อีสาน', lat:17.4008, lon:104.7691},
+  {name:'มุกดาหาร', region:'อีสาน', lat:16.5453, lon:104.7222},
+  {name:'ชุมพร', region:'ใต้', lat:10.4930, lon:99.1800},
+  {name:'ระนอง', region:'ใต้', lat:9.9528, lon:98.6085},
+  {name:'สุราษฎร์ธานี', region:'ใต้', lat:9.1382, lon:99.3215},
+  {name:'พังงา', region:'ใต้', lat:8.4509, lon:98.5310},
+  {name:'ภูเก็ต', region:'ใต้', lat:7.8804, lon:98.3923},
+  {name:'กระบี่', region:'ใต้', lat:8.0863, lon:98.9063},
+  {name:'นครศรีธรรมราช', region:'ใต้', lat:8.4304, lon:99.9631},
+  {name:'ตรัง', region:'ใต้', lat:7.5563, lon:99.6114},
+  {name:'พัทลุง', region:'ใต้', lat:7.6167, lon:100.0742},
+  {name:'สงขลา', region:'ใต้', lat:7.1897, lon:100.5951},
+  {name:'สตูล', region:'ใต้', lat:6.6238, lon:100.0673},
+  {name:'ปัตตานี', region:'ใต้', lat:6.8692, lon:101.2500},
+  {name:'ยะลา', region:'ใต้', lat:6.5411, lon:101.2802},
+  {name:'นราธิวาส', region:'ใต้', lat:6.4254, lon:101.8253},
+];
+
+/* พื้นที่เฝ้าระวังพิเศษ (ประวัติน้ำท่วมบ่อย) — โหลดความเสี่ยงให้อัตโนมัติตอนเปิดหน้า
+   จังหวัดอื่นโหลดเมื่อกดเลือก/กดหมุดบนแผนที่ เพื่อไม่ยิง request 77 จังหวัดพร้อมกัน */
+const WATCHLIST = ['กรุงเทพมหานคร','พระนครศรีอยุธยา','ปทุมธานี','นครราชสีมา','อุบลราชธานี',
+  'อุดรธานี','สุราษฎร์ธานี','นครศรีธรรมราช','ชุมพร','สงขลา','นราธิวาส','ฉะเชิงเทรา','เชียงใหม่','เชียงราย'];
+
+const EMERGENCY_NUMBERS = [
+  {num:'1784', label:'ปภ. แจ้งเหตุน้ำท่วม/ภัยพิบัติ 24 ชม.'},
+  {num:'191', label:'ตำรวจ เหตุด่วนเหตุร้าย'},
+  {num:'199', label:'ดับเพลิงและกู้ภัย'},
+  {num:'1669', label:'การแพทย์ฉุกเฉิน (EMS)'},
+  {num:'1193', label:'ตำรวจทางหลวง'},
+  {num:'1146', label:'กรมชลประทาน สายด่วนน้ำ'},
+  {num:'1460', label:'การไฟฟ้านครหลวง (ไฟฟ้าขัดข้อง)'},
+  {num:'1129', label:'การไฟฟ้าส่วนภูมิภาค'},
+  {num:'1111', label:'ศูนย์บริการข้อมูลภาครัฐ'},
+];
+
+const INFO_SOURCES = [
+  {cat:'จราจร', ico:'🚗', name:'Longdo Traffic — กล้องจราจรทั่วประเทศ', desc:'รายชื่อกล้อง CCTV จราจรทุกภูมิภาค', url:'https://traffic.longdo.com/cameralist'},
+  {cat:'จราจร', ico:'🛣️', name:'กรมทางหลวง — กล้อง CCTV บนทางหลวง', desc:'ภาพจากกล้องบนถนนสายหลักทั่วประเทศ', url:'https://cctv.doh.go.th'},
+  {cat:'จราจร', ico:'🛤️', name:'การทางพิเศษแห่งประเทศไทย (EXAT)', desc:'กล้องจราจรบนทางด่วน', url:'https://cctv.exat.co.th'},
+  {cat:'จราจร', ico:'🚦', name:'กรุงเทพมหานคร — สภาพจราจร กทม.', desc:'ข้อมูลจราจรและน้ำท่วมถนนในพื้นที่ กทม.', url:'https://www.bangkok.go.th'},
+  {cat:'แม่น้ำ/คลอง', ico:'🌊', name:'คลังข้อมูลน้ำแห่งชาติ — ระดับน้ำ/ระดับตลิ่ง', desc:'สถานีวัดระดับน้ำทั่วประเทศ (สสน./HII)', url:'https://www.thaiwater.net/water/wl'},
+  {cat:'แม่น้ำ/คลอง', ico:'🗺️', name:'ระบบคาดการณ์น้ำท่วม ThaiWater', desc:'แผนที่คาดการณ์พื้นที่เสี่ยงน้ำท่วม', url:'https://www.thaiwater.net/floodforecast'},
+  {cat:'แม่น้ำ/คลอง', ico:'💧', name:'กรมชลประทาน — ติดตามสถานการณ์น้ำ', desc:'ข้อมูลเขื่อน/อ่างเก็บน้ำ/ประตูระบายน้ำ', url:'http://water.rid.go.th'},
+  {cat:'ทะเล', ico:'🌊', name:'กรมอุตุนิยมวิทยา — พยากรณ์คลื่นลม/ทะเล', desc:'ประกาศเตือนภัยทางทะเลและชายฝั่ง', url:'https://www.tmd.go.th'},
+  {cat:'ทะเล', ico:'⚓', name:'กรมเจ้าท่า — ความปลอดภัยทางน้ำ', desc:'ประกาศ/ข้อมูลท่าเรือและการเดินเรือ', url:'https://www.md.go.th'},
+  {cat:'รายงานประชาชน', ico:'📷', name:'Traffy Fondue — แจ้ง/ดูรายงานน้ำท่วมจากประชาชน', desc:'รายงานปัญหาน้ำท่วม ถนน สาธารณูปโภค แบบเรียลไทม์', url:'https://traffy.in.th'},
+  {cat:'รายงานประชาชน', ico:'🏛️', name:'กรมป้องกันและบรรเทาสาธารณภัย (ปภ.)', desc:'ประกาศเตือนภัยและพื้นที่ประสบภัยทางการ', url:'https://www.disaster.go.th'},
+];
+
+/* =====================================================================
+   Utils
+   ===================================================================== */
+function haversine(lat1, lon1, lat2, lon2) {
+  const R = 6371, toRad = d => d * Math.PI / 180;
+  const dLat = toRad(lat2 - lat1), dLon = toRad(lon2 - lon1);
+  const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLon/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+function nearestProvince(lat, lon) {
+  let best = null, bestD = Infinity;
+  for (const p of PROVINCES) {
+    const d = haversine(lat, lon, p.lat, p.lon);
+    if (d < bestD) { bestD = d; best = p; }
+  }
+  return { province: best, distanceKm: bestD };
+}
+function round1(n) { return Math.round(n * 10) / 10; }
+
+/* เกณฑ์ปริมาณฝนรายวัน อิงแนวทางกรมอุตุนิยมวิทยา (เบา/ปานกลาง/หนัก/หนักมาก) */
+function classifyDailyRain(mm) {
+  if (mm == null) return null;
+  if (mm < 10) return 0;
+  if (mm < 35) return 1;
+  if (mm < 90) return 2;
+  return 3;
+}
+/* เกณฑ์ฝนสะสม 3 วัน — ตัวแทนคร่าว ๆ ของความอิ่มตัวของดิน/ความเสี่ยงน้ำล้นตลิ่ง (heuristic ไม่ใช่ค่าทางการ) */
+function classifyAccum3d(mm) {
+  if (mm == null) return null;
+  if (mm < 60) return 0;
+  if (mm < 150) return 1;
+  if (mm < 300) return 2;
+  return 3;
+}
+const LEVEL_META = [
+  {label:'ปกติ', color:'#10b981', icon:'✅'},
+  {label:'เฝ้าระวัง', color:'#f59e0b', icon:'⚠️'},
+  {label:'เตือนภัย', color:'#f97316', icon:'🚨'},
+  {label:'วิกฤต/อันตราย', color:'#dc2626', icon:'🆘'},
+];
+
+function weatherIcon(code) {
+  if (code == null) return '❓';
+  if (code === 0) return '☀️';
+  if ([1,2,3].includes(code)) return '⛅';
+  if ([45,48].includes(code)) return '🌫️';
+  if ([51,53,55,56,57].includes(code)) return '🌦️';
+  if ([61,63,65,66,67,80,81,82].includes(code)) return '🌧️';
+  if ([71,73,75,77,85,86].includes(code)) return '🌨️';
+  if ([95,96,99].includes(code)) return '⛈️';
+  return '🌥️';
+}
+
+/* =====================================================================
+   Open-Meteo fetch
+   ===================================================================== */
+async function fetchAreaWeather(lat, lon) {
+  const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
+    `&current=precipitation,temperature_2m,relative_humidity_2m,wind_speed_10m,weather_code` +
+    `&hourly=precipitation,precipitation_probability` +
+    `&daily=precipitation_sum,precipitation_probability_max,temperature_2m_max,temperature_2m_min` +
+    `&past_days=3&forecast_days=5&timezone=Asia%2FBangkok`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('open-meteo forecast failed: ' + res.status);
+  return res.json();
+}
+
+const COMPARE_MODELS = ['ecmwf_ifs025','gfs_seamless','icon_seamless','jma_seamless'];
+async function fetchModelAgreement(lat, lon) {
+  const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
+    `&daily=precipitation_sum&timezone=Asia%2FBangkok&forecast_days=3&models=${COMPARE_MODELS.join(',')}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('open-meteo multi-model failed: ' + res.status);
+  return res.json();
+}
+
+/* คำนวณดัชนีของ "วันนี้" ใน array daily.time (ซึ่งมี past_days ปนอยู่) */
+function findTodayIndex(dailyTime) {
+  const todayStr = new Date().toLocaleDateString('sv-SE', {timeZone:'Asia/Bangkok'}); // YYYY-MM-DD
+  return dailyTime.indexOf(todayStr);
+}
+
+function analyzeArea(data) {
+  const daily = data.daily, hourly = data.hourly, current = data.current;
+  const todayIdx = findTodayIndex(daily.time);
+  const rainSums = daily.precipitation_sum || [];
+
+  // ฝนสะสม 3 วันล่าสุด (past_days) ไม่รวมวันนี้ที่ยังไม่จบ
+  let accum3d = 0;
+  if (todayIdx >= 3) {
+    for (let i = todayIdx - 3; i < todayIdx; i++) accum3d += (rainSums[i] || 0);
+  }
+  const rainToday = todayIdx >= 0 ? (rainSums[todayIdx] || 0) : null;
+  const rainTomorrow = todayIdx >= 0 && rainSums[todayIdx+1] != null ? rainSums[todayIdx+1] : null;
+  const probTomorrow = todayIdx >= 0 ? daily.precipitation_probability_max?.[todayIdx+1] : null;
+
+  const lvlToday = classifyDailyRain(rainToday);
+  const lvlTomorrow = classifyDailyRain(rainTomorrow);
+  const lvlAccum = classifyAccum3d(accum3d);
+  const level = Math.max(lvlToday ?? 0, lvlTomorrow ?? 0, lvlAccum ?? 0);
+
+  return {
+    current, rainToday, rainTomorrow, probTomorrow, accum3d, level,
+    lvlToday, lvlTomorrow, lvlAccum,
+    todayIdx, daily, hourly,
+  };
+}
+
+function buildRecommendations(level) {
+  if (level === 0) return ['สถานการณ์ปกติ — ติดตามพยากรณ์อากาศตามปกติ', 'ตรวจสอบทางระบายน้ำรอบบ้านให้โล่งอยู่เสมอ'];
+  if (level === 1) return [
+    'ฝนเริ่มมีแนวโน้มมากขึ้น — ติดตามพยากรณ์ใกล้ชิดขึ้น',
+    'ตรวจสอบท่อระบายน้ำ ร่องน้ำรอบบ้าน/สวน ไม่ให้อุดตัน',
+    'เตรียมกระสอบทราย/แผงกั้นน้ำไว้ล่วงหน้าหากอยู่พื้นที่ลุ่มต่ำ',
+    'ชาร์จมือถือ/ไฟฉายสำรองให้พร้อม',
+  ];
+  if (level === 2) return [
+    'มีความเสี่ยงน้ำท่วมในพื้นที่ — เตรียมย้ายของมีค่า/เครื่องใช้ไฟฟ้าขึ้นที่สูง',
+    'ตัดไฟฟ้าในจุดที่เสี่ยงน้ำท่วมถึง',
+    'เตรียมเสบียง น้ำดื่ม ยา และของใช้จำเป็นอย่างน้อย 3 วัน',
+    'ติดตามประกาศจาก ปภ./จังหวัดอย่างใกล้ชิด และวางแผนเส้นทางอพยพ',
+    'หลีกเลี่ยงการเดินทางผ่านจุดเสี่ยงน้ำท่วมขัง/น้ำไหลแรง',
+  ];
+  return [
+    'ความเสี่ยงสูง/วิกฤต — ปฏิบัติตามประกาศอพยพของทางการทันทีหากมี',
+    'ย้ายคน สัตว์เลี้ยง และทรัพย์สินสำคัญไปยังที่ปลอดภัย/ที่สูงโดยเร็ว',
+    'งดใช้ยานพาหนะ/เดินลุยน้ำหลากหรือน้ำไหลแรงโดยเด็ดขาด',
+    'โทรแจ้ง 1784 (ปภ.) หากต้องการความช่วยเหลือกู้ภัย',
+    'เตรียมพร้อมไฟฟ้าดับ สื่อสารผ่านมือถือที่ชาร์จเต็ม/พาวเวอร์แบงก์',
+  ];
+}
+
+/* =====================================================================
+   State & DOM refs
+   ===================================================================== */
+const state = { current: null, map: null, markers: new Map(), userMarker: null, lastNotifiedLevel: null };
+const el = id => document.getElementById(id);
+
+/* =====================================================================
+   Rendering
+   ===================================================================== */
+function renderSummaryCards(a) {
+  el('card-now').innerHTML = `${round1(a.current?.precipitation ?? 0)}<span class="unit">มม./ชม.</span>`;
+  el('card-now-foot').textContent = a.current
+    ? `${weatherIcon(a.current.weather_code)} ${round1(a.current.temperature_2m)}°C · ความชื้น ${a.current.relative_humidity_2m}% · ลม ${round1(a.current.wind_speed_10m)} กม./ชม.`
+    : '–';
+
+  el('card-accum').innerHTML = `${round1(a.accum3d)}<span class="unit">มม.</span>`;
+  el('card-accum-foot').textContent = a.lvlAccum != null ? `ระดับ: ${LEVEL_META[a.lvlAccum].label} (ย้อนหลัง 3 วัน)` : '–';
+
+  el('card-fc').innerHTML = a.rainTomorrow != null ? `${round1(a.rainTomorrow)}<span class="unit">มม.</span>` : '–';
+  el('card-fc-foot').textContent = a.probTomorrow != null ? `โอกาสฝนพรุ่งนี้ ${a.probTomorrow}%` : 'ไม่มีข้อมูลพรุ่งนี้';
+
+  const meta = LEVEL_META[a.level];
+  el('card-risk').innerHTML = `<span class="badge badge-${a.level}">${meta.icon} ${meta.label}</span>`;
+  el('card-risk-foot').textContent = 'ประเมินจากฝนวันนี้/พรุ่งนี้ + ฝนสะสม 3 วัน';
+}
+
+function renderAlertBanner(a, placeName) {
+  const banner = el('alert-banner');
+  banner.className = 'alert-banner level-' + a.level;
+  const meta = LEVEL_META[a.level];
+  el('alert-text').textContent = `${meta.icon} ${placeName}: ระดับ "${meta.label}"`;
+  el('alert-sub').textContent = a.level === 0
+    ? 'ไม่มีสัญญาณฝนตกหนักผิดปกติในช่วงนี้'
+    : `ฝนวันนี้ ${round1(a.rainToday ?? 0)} มม. · พรุ่งนี้คาดการณ์ ${a.rainTomorrow != null ? round1(a.rainTomorrow)+' มม.' : 'ไม่มีข้อมูล'} · สะสม 3 วัน ${round1(a.accum3d)} มม.`;
+
+  if (a.level >= 2 && state.lastNotifiedLevel !== a.level) {
+    maybeNotify(`${meta.icon} ${placeName}: ระดับ ${meta.label}`, el('alert-sub').textContent);
+    state.lastNotifiedLevel = a.level;
+  }
+}
+
+function renderAiPanel(a, placeName) {
+  const meta = LEVEL_META[a.level];
+  const recs = buildRecommendations(a.level);
+  let html = `<div class="ai-line"><span class="ico">${meta.icon}</span><div>
+    <b>${placeName}</b> อยู่ในระดับ <span class="badge badge-${a.level}">${meta.label}</span><br>
+    แนวโน้ม: ฝนวันนี้ระดับ "${a.lvlToday!=null?LEVEL_META[a.lvlToday].label:'ไม่ทราบ'}", พรุ่งนี้ระดับ "${a.lvlTomorrow!=null?LEVEL_META[a.lvlTomorrow].label:'ไม่ทราบ'}",
+    ฝนสะสม 3 วันระดับ "${a.lvlAccum!=null?LEVEL_META[a.lvlAccum].label:'ไม่ทราบ'}"
+  </div></div>`;
+  html += `<div class="prep-title">✅ สิ่งที่ควรเตรียม/ทำ</div><ul>${recs.map(r=>`<li>${r}</li>`).join('')}</ul>`;
+  el('ai-body').innerHTML = html;
+}
+
+function renderModelAgreement(multi) {
+  const box = el('model-agreement');
+  if (!multi) { box.innerHTML = '<div class="loading">โหลดข้อมูลหลายโมเดลไม่สำเร็จ</div>'; return; }
+  const rows = COMPARE_MODELS.map(m => {
+    const arr = multi.daily?.[`precipitation_sum_${m}`];
+    const v = arr ? arr[1] : null; // index 1 ≈ พรุ่งนี้ (forecast_days=3, ไม่มี past_days)
+    return { m, v };
+  });
+  const agree = rows.filter(r => r.v != null && r.v >= 10).length;
+  const total = rows.filter(r => r.v != null).length;
+  let html = `<div style="margin-bottom:8px; font-size:0.85em; color:#4a5568;">
+    ${agree}/${total || COMPARE_MODELS.length} โมเดลเห็นตรงกันว่าพรุ่งนี้จะมีฝน ≥10 มม.</div>`;
+  html += rows.map(r => `<div style="display:flex; justify-content:space-between; font-size:0.85em; padding:4px 0; border-bottom:1px solid #eee;">
+    <span>${r.m}</span><span><b>${r.v!=null?round1(r.v)+' มม.':'–'}</b></span></div>`).join('');
+  box.innerHTML = html;
+}
+
+/* =====================================================================
+   Sources tabs
+   ===================================================================== */
+function renderSources() {
+  const cats = ['ทั้งหมด', ...new Set(INFO_SOURCES.map(s=>s.cat))];
+  el('source-tabs').innerHTML = cats.map((c,i)=>`<button class="tab-btn ${i===0?'active':''}" data-cat="${c}">${c}</button>`).join('');
+  function draw(cat) {
+    const items = cat === 'ทั้งหมด' ? INFO_SOURCES : INFO_SOURCES.filter(s=>s.cat===cat);
+    el('source-list').innerHTML = items.map(s => `
+      <a class="source-item" href="${s.url}" target="_blank" rel="noopener">
+        <span class="ico">${s.ico}</span>
+        <span><span class="name">${s.name}</span><br><span class="desc">${s.desc}</span></span>
+      </a>`).join('');
+  }
+  el('source-tabs').addEventListener('click', e => {
+    const btn = e.target.closest('.tab-btn'); if (!btn) return;
+    el('source-tabs').querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    draw(btn.dataset.cat);
+  });
+  draw('ทั้งหมด');
+}
+
+function renderEmergency() {
+  el('emg-grid').innerHTML = EMERGENCY_NUMBERS.map(e => `
+    <a class="emg-item" href="tel:${e.num}">
+      <div class="num">📞 ${e.num}</div>
+      <div class="lbl">${e.label}</div>
+    </a>`).join('');
+}
+
+/* =====================================================================
+   Map
+   ===================================================================== */
+function initMap() {
+  state.map = L.map('map', { scrollWheelZoom: true }).setView([13.0, 101.0], 6);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors', maxZoom: 18,
+  }).addTo(state.map);
+
+  PROVINCES.forEach(p => {
+    const marker = L.circleMarker([p.lat, p.lon], {
+      radius: 8, color: '#64748b', fillColor: '#64748b', fillOpacity: 0.85, weight: 1,
+    }).addTo(state.map);
+    marker.bindPopup(`<b>${p.name}</b><br><span style="font-size:0.85em;">กำลังโหลดข้อมูลฝน...</span>`);
+    marker.on('click', () => loadProvinceMarker(p, marker));
+    state.markers.set(p.name, marker);
+  });
+
+  // preload watchlist provinces (ประวัติน้ำท่วมบ่อย) แบบไม่บล็อก UI
+  WATCHLIST.forEach(name => {
+    const p = PROVINCES.find(pp => pp.name === name);
+    const marker = state.markers.get(name);
+    if (p && marker) loadProvinceMarker(p, marker);
+  });
+}
+
+async function loadProvinceMarker(p, marker) {
+  try {
+    const data = await fetchAreaWeather(p.lat, p.lon);
+    const a = analyzeArea(data);
+    const meta = LEVEL_META[a.level];
+    marker.setStyle({ color: meta.color, fillColor: meta.color });
+    marker.bindPopup(`<b>${p.name}</b><br>
+      ระดับ: <b style="color:${meta.color}">${meta.icon} ${meta.label}</b><br>
+      ฝนวันนี้: ${round1(a.rainToday ?? 0)} มม. · พรุ่งนี้: ${a.rainTomorrow!=null?round1(a.rainTomorrow)+' มม.':'–'}<br>
+      <a href="#" onclick="selectArea(${p.lat},${p.lon},'${p.name.replace(/'/g,"")}'); return false;">🔎 ดูรายละเอียดพื้นที่นี้</a>`);
+  } catch (err) {
+    marker.bindPopup(`<b>${p.name}</b><br><span style="color:#dc2626;">โหลดข้อมูลไม่สำเร็จ (ลองใหม่โดยกดหมุดอีกครั้ง)</span>`);
+  }
+}
+
+function setUserMarker(lat, lon, label) {
+  if (state.userMarker) state.map.removeLayer(state.userMarker);
+  state.userMarker = L.marker([lat, lon], {
+    icon: L.divIcon({ className: '', html: '📍', iconSize: [24,24] })
+  }).addTo(state.map).bindPopup(label || 'ตำแหน่งของคุณ').openPopup();
+  state.map.setView([lat, lon], 9);
+}
+
+/* =====================================================================
+   Main area select flow
+   ===================================================================== */
+async function selectArea(lat, lon, name) {
+  state.current = { lat, lon, name };
+  localStorage.setItem('floodwatch_last_area', JSON.stringify({ lat, lon, name }));
+  el('geo-status').textContent = `⏳ กำลังโหลดข้อมูล ${name}...`;
+  try {
+    const data = await fetchAreaWeather(lat, lon);
+    const a = analyzeArea(data);
+    renderSummaryCards(a);
+    renderAlertBanner(a, name);
+    renderAiPanel(a, name);
+    el('geo-status').textContent = `✅ อัปเดตล่าสุดสำหรับ ${name}`;
+
+    fetchModelAgreement(lat, lon).then(renderModelAgreement).catch(()=>renderModelAgreement(null));
+  } catch (err) {
+    el('geo-status').textContent = '❌ โหลดข้อมูลไม่สำเร็จ ลองใหม่อีกครั้ง';
+  }
+}
+
+/* =====================================================================
+   GPS / Geolocation
+   ===================================================================== */
+function useMyLocation() {
+  if (!navigator.geolocation) { el('geo-status').textContent = '❌ เบราว์เซอร์นี้ไม่รองรับ GPS'; return; }
+  el('geo-status').textContent = '⏳ กำลังขอตำแหน่ง...';
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      const { latitude, longitude } = pos.coords;
+      const { province, distanceKm } = nearestProvince(latitude, longitude);
+      const label = `ตำแหน่งของคุณ (ใกล้ ${province.name}, ห่าง ${round1(distanceKm)} กม.)`;
+      setUserMarker(latitude, longitude, label);
+      el('province-select').value = province.name;
+      selectArea(latitude, longitude, `ตำแหน่งของคุณ (ใกล้ ${province.name})`);
+    },
+    err => { el('geo-status').textContent = '❌ ไม่สามารถอ่านตำแหน่งได้ (' + err.message + ')'; },
+    { enableHighAccuracy: true, timeout: 15000 }
+  );
+}
+
+/* =====================================================================
+   Province select / search
+   ===================================================================== */
+function initControls() {
+  const sel = el('province-select');
+  sel.innerHTML = '<option value="">— เลือกจังหวัด —</option>' +
+    PROVINCES.map(p => `<option value="${p.name}">${p.name} (${p.region})</option>`).join('');
+  sel.addEventListener('change', () => {
+    const p = PROVINCES.find(pp => pp.name === sel.value);
+    if (p) { setUserMarker(p.lat, p.lon, p.name); selectArea(p.lat, p.lon, p.name); }
+  });
+
+  el('btn-gps').addEventListener('click', useMyLocation);
+
+  el('btn-search').addEventListener('click', doSearch);
+  el('place-search').addEventListener('keydown', e => { if (e.key === 'Enter') doSearch(); });
+
+  el('btn-notify').addEventListener('click', async () => {
+    if (!('Notification' in window)) { alert('เบราว์เซอร์นี้ไม่รองรับการแจ้งเตือน'); return; }
+    const perm = await Notification.requestPermission();
+    el('btn-notify').textContent = perm === 'granted' ? '🔔 เปิดการแจ้งเตือนแล้ว' : '🔕 ไม่ได้อนุญาตการแจ้งเตือน';
+  });
+}
+
+async function doSearch() {
+  const q = el('place-search').value.trim();
+  if (!q) return;
+  el('geo-status').textContent = '⏳ กำลังค้นหา...';
+  try {
+    const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=1&language=th&format=json`;
+    const res = await fetch(url);
+    const json = await res.json();
+    const r = json.results?.[0];
+    if (!r) { el('geo-status').textContent = '❌ ไม่พบสถานที่ที่ค้นหา'; return; }
+    setUserMarker(r.latitude, r.longitude, r.name);
+    selectArea(r.latitude, r.longitude, r.name);
+  } catch (err) {
+    el('geo-status').textContent = '❌ ค้นหาไม่สำเร็จ';
+  }
+}
+
+function maybeNotify(title, body) {
+  if ('Notification' in window && Notification.permission === 'granted') {
+    try { new Notification(title, { body, icon: undefined }); } catch (e) {}
+  }
+}
+
+/* =====================================================================
+   Init
+   ===================================================================== */
+function init() {
+  initControls();
+  renderSources();
+  renderEmergency();
+  initMap();
+
+  const saved = localStorage.getItem('floodwatch_last_area');
+  if (saved) {
+    try {
+      const { lat, lon, name } = JSON.parse(saved);
+      el('province-select').value = PROVINCES.find(p=>p.name===name)?.name || '';
+      setUserMarker(lat, lon, name);
+      selectArea(lat, lon, name);
+      return;
+    } catch (e) {}
+  }
+  // ค่าเริ่มต้น: กรุงเทพมหานคร
+  const bkk = PROVINCES[0];
+  el('province-select').value = bkk.name;
+  selectArea(bkk.lat, bkk.lon, bkk.name);
+
+  // รีเฟรชข้อมูลพื้นที่ที่เลือกทุก 15 นาที เพื่อให้แจ้งเตือนทันสถานการณ์ (ทำงานเฉพาะขณะเปิดแท็บไว้)
+  setInterval(() => {
+    if (state.current) selectArea(state.current.lat, state.current.lon, state.current.name);
+  }, 15 * 60 * 1000);
+}
+
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>
