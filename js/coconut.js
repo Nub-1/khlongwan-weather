@@ -69,7 +69,7 @@
           <div class="coconut-status st-text-${nStatus.cls}"><span aria-hidden="true">${nStatus.icon}</span> ${nStatus.status}</div>
           ${meter(nextTotal, nStatus.cls)}
           <p class="coconut-total">ฝนรวมค่ากลาง <b>${U.fmtMm(nextTotal)} มม.</b> / เป้า ${WEEKLY_TARGET_MM} มม.<br><span class="muted">${nextNote}</span></p>
-          <p class="muted">${nStatus.desc}</p>
+          <p class="muted">${nStatus.desc}${range && range.probs && range.probs[WEEKLY_TARGET_MM] != null ? ` · โอกาสได้ฝนครบเป้า ${U.fmtPct(range.probs[WEEKLY_TARGET_MM])}` : ''}</p>
           ${nAdvice
             ? `<p class="advice">💧 รดน้ำ <b>${nAdvice.litersPerWeek} ลิตร/ต้น/สัปดาห์</b><br><span class="muted">≈ ${nAdvice.litersPerDay} ลิตร/ต้น/วัน · ${nAdvice.freq}</span></p>`
             : '<p class="advice good-note">✅ ฝนเพียงพอ ไม่ต้องรดน้ำเสริม</p>'}
