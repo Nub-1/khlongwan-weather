@@ -171,8 +171,31 @@
     };
   }
 
+  // ============ ถอดสี Universal Blue → dBZ ============
+  // ตั้งแต่ 1 ม.ค. 2026 RainViewer ฟรีเหลือโทนสีเดียว (Universal Blue, id 2) — ภาพขาวดำที่อ่านค่าตรง ๆ ได้ถูกยกเลิก
+  // จึงจับคู่สีกับสีกลางของแต่ละระดับ แล้วใช้ dBZ ตัวแทนของระดับนั้น (ละเอียดพอสำหรับบอกระดับฝน/ทิศทาง)
+  const UB_LEVELS = [
+    { dbz: 18, rgb: [0x51, 0xc5, 0xe8] }, // 10–19 เบามาก (นับเป็นฝนเบา ให้ตรงกับสีที่เห็นบนแผนที่)
+    { dbz: 27, rgb: [0x00, 0x69, 0x9c] }, // 20–34 เบา
+    { dbz: 37, rgb: [0xff, 0xd2, 0x00] }, // 35–39 ปานกลาง
+    { dbz: 42, rgb: [0xff, 0x95, 0x00] }, // 40–44 หนัก
+    { dbz: 50, rgb: [0xcd, 0x0d, 0x00] }, // 45–54 หนักมาก
+    { dbz: 58, rgb: [0xff, 0x81, 0xff] }, // ≥ 55 รุนแรง
+  ];
+  const OFF_PALETTE = -999;
+
+  // คืน dBZ ตัวแทน, NOECHO (โปร่ง/ต่ำกว่า 10 dBZ) หรือ OFF_PALETTE (สีที่ไม่รู้จัก — ใช้ตรวจว่าโทนสีเปลี่ยนไปหรือไม่)
+  function decodeUB(r, g, b, a) {
+    if (a < 64) return NOECHO;
+    let best = Infinity, dbz = NOECHO;
+    for (const L of UB_LEVELS) {
+      const d = (r - L.rgb[0]) ** 2 + (g - L.rgb[1]) ** 2 + (b - L.rgb[2]) ** 2;
+      if (d < best) { best = d; dbz = L.dbz; }
+    }
+    return best <= 130 * 130 ? dbz : OFF_PALETTE;
+  }
+
   // ============ Browser: ดึง tile แล้วถอดเป็น dBZ ============
-  // color scheme 0 = ขาวดำ ค่าพิกเซล = dBZ + 32 ; alpha 0 = ไม่มีสัญญาณ
   function loadImage(url, timeoutMs = 12000) {
     return new Promise((resolve, reject) => {
       const img = new Image();
@@ -197,7 +220,8 @@
     const jobs = [];
     for (let ty = ty0; ty <= ty1; ty++) {
       for (let tx = tx0; tx <= tx1; tx++) {
-        const url = `${host}${framePath}/${TILE}/${z}/${tx}/${ty}/0/0_0.png`;
+        // 1_0 = เกลี่ยขอบ, ไม่แยกสีหิมะ/ฝนผสม (ใช้สีฝนชุดเดียว) ; zoom เกิน 7 จะได้ภาพแจ้งเตือนแทนข้อมูล
+        const url = `${host}${framePath}/${TILE}/${z}/${tx}/${ty}/2/1_0.png`;
         jobs.push(loadImage(url).then(img => ctx.drawImage(img, tx * TILE - x0, ty * TILE - y0)));
       }
     }
@@ -210,14 +234,18 @@
       throw new Error('เบราว์เซอร์บล็อกการอ่านพิกเซลเรดาร์ (CORS)');
     }
     const field = new Float32Array(size * size);
+    let opaque = 0, off = 0;
     for (let i = 0; i < field.length; i++) {
-      field[i] = data[4 * i + 3] < 10 ? NOECHO : data[4 * i] - 32;
+      const v = decodeUB(data[4 * i], data[4 * i + 1], data[4 * i + 2], data[4 * i + 3]);
+      if (v !== NOECHO) opaque++;
+      if (v === OFF_PALETTE) { off++; field[i] = NOECHO; } else field[i] = v;
     }
+    if (opaque >= 50 && off / opaque > 0.3) throw new Error('สีของภาพเรดาร์ไม่ตรงกับโทนสีที่รู้จัก (RainViewer อาจเปลี่ยนรูปแบบ)');
     return { field, center: { x: w.x - x0, y: w.y - y0 } };
   }
 
   async function loadFrames(meta, lat, lon, opts = {}) {
-    const n = opts.frames ?? 4;
+    const n = opts.frames ?? 3; // 3 ภาพพอหาทิศทาง — RainViewer จำกัด ~100 คำขอ/นาที/IP
     const past = (meta?.radar?.past || []).slice(-n);
     if (!past.length) throw new Error('RainViewer ไม่มีเฟรมเรดาร์');
     const host = meta.host || 'https://tilecache.rainviewer.com';
@@ -229,7 +257,7 @@
   }
 
   WX.radar = {
-    NOECHO, HOST_META,
+    NOECHO, HOST_META, UB_LEVELS, OFF_PALETTE, decodeUB,
     worldPx, kmPerPx, maxInDisc, frameStats, bestShift, estimateVelocity,
     nearestEcho, projectArrival, analyze, loadFrames,
   };
