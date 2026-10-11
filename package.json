@@ -1,0 +1,8 @@
+{
+  "name": "khlongwan-weather",
+  "private": true,
+  "description": "Weather dashboard - static site, no build step. npm test runs the pure-logic unit tests.",
+  "scripts": {
+    "test": "node --test tests/*.test.js"
+  }
+}
