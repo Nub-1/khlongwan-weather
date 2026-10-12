@@ -146,6 +146,39 @@
     return { start, end, perModel, obsTimes: arch.daily && arch.daily.time, obsValues: arch.daily && arch.daily.precipitation_sum };
   }
 
+  // กริดจุดรอบพื้นที่สำหรับวาดแผนที่ฝนจากแบบจำลอง (ช่วงที่ไม่มีภาพเรดาร์) — แถว 0 = เหนือสุด
+  const GRID_N = 7, GRID_STEP = 0.3;
+  function gridPoints(lat, lon, n = GRID_N, step = GRID_STEP) {
+    const h = (n - 1) / 2, lats = [], lons = [];
+    for (let i = 0; i < n; i++) {
+      for (let j = 0; j < n; j++) {
+        lats.push(+(lat + (h - i) * step).toFixed(4));
+        lons.push(+(lon + (j - h) * step).toFixed(4));
+      }
+    }
+    return { lat, lon, n, step, lats, lons };
+  }
+
+  function parseGrid(json, g) {
+    const arr = Array.isArray(json) ? json : [json];
+    if (arr.length !== g.lats.length) throw new Error(`จุดกริดไม่ครบ (${arr.length}/${g.lats.length})`);
+    const times = arr[0] && arr[0].hourly && arr[0].hourly.time;
+    if (!times || !times.length) throw new Error('ไม่มีข้อมูลรายชั่วโมง');
+    const values = times.map((_, t) => arr.map(p => {
+      const v = p && p.hourly && p.hourly.precipitation ? p.hourly.precipitation[t] : null;
+      return v == null ? null : v;
+    }));
+    return { lat: g.lat, lon: g.lon, n: g.n, step: g.step, times, values };
+  }
+
+  // cell_selection=nearest: บนแผนที่ต้องการค่าของจุดนั้นจริง ๆ ไม่ใช่ดึงจุดในทะเลไปหาแผ่นดิน
+  async function modelGrid(loc) {
+    const g = gridPoints(loc.lat, loc.lon);
+    const base = `${OM.forecast}?latitude=${g.lats.join(',')}&longitude=${g.lons.join(',')}&hourly=precipitation&${TZ_Q}&cell_selection=nearest`;
+    const j = await firstOk('Open-Meteo grid', [`${base}&past_hours=7&forecast_hours=8`, `${base}&past_days=1&forecast_days=2`]);
+    return parseGrid(j, g);
+  }
+
   async function geocode(query) {
     const j = await fetchJSON(`${OM.geo}?name=${encodeURIComponent(query)}&count=8&language=th&format=json`, 10000);
     return Array.isArray(j.results) ? j.results : [];
@@ -158,6 +191,7 @@
     { id: 'radar', label: 'RainViewer เรดาร์', group: 'now', every: 5 * MIN, run: radar },
     { id: 'forecast', label: 'Open-Meteo พยากรณ์', group: 'fc', every: 30 * MIN, cache: 15 * MIN, run: forecast },
     ...ENSEMBLES.map(e => ({ id: e.id, label: e.label, group: 'fc', every: 60 * MIN, cache: 40 * MIN, run: loc => ensemble(loc, e), ens: e })),
+    { id: 'model_grid', label: 'Open-Meteo แผนที่ฝนแบบจำลอง', group: 'map', every: 60 * MIN, cache: 50 * MIN, run: modelGrid },
     { id: 'archive', label: 'ERA5-Land ย้อนหลัง', group: 'hist', every: 3 * 60 * MIN, cache: 2 * 60 * MIN, run: archive },
     { id: 'backtest', label: 'ผลย้อนทดสอบโมเดล', group: 'hist', every: 12 * 60 * MIN, cache: 6 * 60 * MIN, run: backtest },
   ];
@@ -177,5 +211,5 @@
     }
   }
 
-  WX.sources = { LIST, ENSEMBLES, BACKTEST_MODELS, run, geocode, parsePrevRuns, fetchJSON };
+  WX.sources = { LIST, ENSEMBLES, BACKTEST_MODELS, run, geocode, parsePrevRuns, fetchJSON, gridPoints, parseGrid };
 })(typeof window !== 'undefined' ? window : globalThis);
