@@ -4,26 +4,68 @@
   const U = WX.util;
   const $ = id => document.getElementById(id);
 
-  const MAX_PAST = 7;      // ย้อนหลัง 1 ชม. (ภาพทุก 10 นาที) — RainViewer จำกัด ~100 คำขอ/นาที/IP
-  const FUTURE_STEPS = 6;  // ล่วงหน้า 1 ชม. — RainViewer ฟรีเลิกให้ภาพคาดการณ์แล้ว จึงเลื่อนภาพล่าสุดตามทิศทางที่คำนวณเอง
+  const MIN = 60000, HOUR = 3600000;
+  const SPAN_H = 6;        // ไทม์ไลน์ −6 ถึง +6 ชม.
+  const FUTURE_STEPS = 6;  // คาดการณ์จากเรดาร์ +10…+60 นาที (เกินนั้นใช้แบบจำลอง)
   const STEP_MS = 700;
 
-  let map = null, marker = null, rings = [], arrow = null;
-  let layers = [], frames = [], idx = 0, sig = '', locKey = '';
-  let pastFrames = [], futureLayer = null, futureSig = '', futurePane = null;
-  let timer = null, playing = true, hold = 0, lastS = null, libFailed = false;
-  let tileOk = [], tileErr = [];
+  // ============ ไทม์ไลน์ (logic ล้วน มี unit test) ============
+  // เรดาร์ RainViewer ฟรีเก็บย้อนหลังได้ ~2 ชม. — ชั่วโมงล่าสุดใช้ทุกภาพ (10 นาที) ชั่วโมงก่อนนั้นใช้ทุก 20 นาที
+  // เพื่อไม่ให้ชนเพดาน ~100 คำขอ/นาที/IP ; ช่วงที่ไม่มีเรดาร์เติมด้วยแบบจำลองรายชั่วโมง
+  function pickRadarPast(past) {
+    if (!past || !past.length) return [];
+    const last = past[past.length - 1].time;
+    return past.filter(f => last - f.time <= 3600 || ((last - f.time) / 600) % 2 === 0);
+  }
+
+  function buildTimeline({ radarPast, hasFuture, gridTimes, nowMs }) {
+    const frames = radarPast.map(f => ({ kind: 'radar', ms: f.time * 1000, path: f.path }));
+    const last = frames.length ? frames[frames.length - 1] : null;
+    if (last && hasFuture) {
+      for (let k = 1; k <= FUTURE_STEPS; k++) frames.push({ kind: 'extrap', ms: last.ms + k * 10 * MIN, offsetMin: k * 10 });
+    }
+    const covStart = frames.length ? frames[0].ms - 5 * MIN : Infinity;
+    const covEnd = frames.length ? frames[frames.length - 1].ms + 5 * MIN : -Infinity;
+    (gridTimes || []).forEach((t, i) => {
+      const ms = U.bkkToEpoch(t);
+      if (ms < nowMs - SPAN_H * HOUR - 5 * MIN || ms > nowMs + SPAN_H * HOUR + 5 * MIN) return;
+      if (ms >= covStart && ms <= covEnd) return;
+      frames.push({ kind: 'model', ms, t: i });
+    });
+    frames.sort((a, b) => a.ms - b.ms);
+    let nowIdx = 0;
+    if (last) nowIdx = frames.indexOf(last);
+    else frames.forEach((f, i) => { if (Math.abs(f.ms - nowMs) < Math.abs(frames[nowIdx].ms - nowMs)) nowIdx = i; });
+    return { frames, nowIdx: Math.max(0, nowIdx) };
+  }
+
+  // สีตามปริมาณฝนรายชั่วโมงของแบบจำลอง — ใช้สีระดับเดียวกับเรดาร์ (Universal Blue)
+  function rateColor(mm) {
+    if (mm == null || mm < 0.1) return null;
+    if (mm < 0.5) return [0x51, 0xc5, 0xe8];
+    if (mm < 2.5) return [0x00, 0x69, 0x9c];
+    if (mm < 7.6) return [0xff, 0xd2, 0x00];
+    if (mm < 15) return [0xff, 0x95, 0x00];
+    if (mm < 30) return [0xcd, 0x0d, 0x00];
+    return [0xff, 0x81, 0xff];
+  }
+
+  // ============ แผนที่ ============
+  let map = null, marker = null, rings = [], arrow = null, futurePane = null, futureLayer = null, futurePath = '';
+  let modelOverlay = null, modelBox = null, modelKey = '', modelImgs = new Map();
+  const radarLayers = new Map(), tiles = new Map();
+  let frames = [], nowIdx = 0, idx = 0, sig = '', locKey = '', host = '';
+  let playing = true, hold = 0, lastS = null, libFailed = false;
 
   const textEl = s => { const e = document.createElement('span'); e.textContent = s; return e; };
 
   function ensureMap(loc) {
     if (!window.L) return false;
     if (!map) {
-      map = L.map($('radar-map'), {
-        zoomControl: true, scrollWheelZoom: false, dragging: !L.Browser.mobile, tap: false,
-      }).setView([loc.lat, loc.lon], 7);
+      map = L.map($('radar-map'), { zoomControl: true, scrollWheelZoom: false, dragging: !L.Browser.mobile, tap: false })
+        .setView([loc.lat, loc.lon], 7);
       L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 12, attribution: '© OpenStreetMap · เรดาร์ © RainViewer',
+        maxZoom: 12, attribution: '© OpenStreetMap · เรดาร์ © RainViewer · แบบจำลอง © Open-Meteo',
       }).addTo(map);
       futurePane = map.createPane('radarFuture');
       futurePane.style.zIndex = 250;
@@ -31,7 +73,7 @@
       map.on('zoomend', () => showFrame(idx));
       $('radar-play').onclick = () => { playing = !playing; syncControls(); };
       $('radar-slider').oninput = e => { playing = false; showFrame(Number(e.target.value)); syncControls(); };
-      timer = setInterval(tick, STEP_MS);
+      setInterval(tick, STEP_MS);
     }
     const key = `${loc.lat},${loc.lon}`;
     if (key !== locKey) {
@@ -46,123 +88,185 @@
     return true;
   }
 
-  function setPast(meta) {
-    const list = meta.past.slice(-MAX_PAST).map(f => ({ ...f, kind: 'past' }));
-    const s2 = list.map(f => f.path).join('|');
-    if (s2 === sig) return false;
+  // สร้าง layer เรดาร์เมื่อจะใช้จริงเท่านั้น — กระจายคำขอไปตามเวลาที่ภาพเล่น ไม่ยิงทีเดียวทั้งหมด
+  function radarLayer(path) {
+    if (!radarLayers.has(path)) {
+      const t = { ok: 0, err: 0 };
+      tiles.set(path, t);
+      radarLayers.set(path, L.tileLayer(`${host}${path}/256/{z}/{x}/{y}/2/1_0.png`, { opacity: 0, maxNativeZoom: 7, maxZoom: 12, zIndex: 5 })
+        .on('tileload', () => { t.ok++; updateInfo(); })
+        .on('tileerror', () => { t.err++; updateInfo(); })
+        .addTo(map));
+    }
+    return radarLayers.get(path);
+  }
+
+  function modelImage(grid, t) {
+    const key = `${grid.lat},${grid.lon},${grid.times[t]}`;
+    if (modelImgs.has(key)) return modelImgs.get(key);
+    const n = grid.n;
+    const small = document.createElement('canvas');
+    small.width = small.height = n;
+    const sc = small.getContext('2d');
+    const img = sc.createImageData(n, n);
+    grid.values[t].forEach((v, p) => {
+      const c = rateColor(v);
+      if (c) img.data.set([c[0], c[1], c[2], 210], p * 4);
+    });
+    sc.putImageData(img, 0, 0);
+    const big = document.createElement('canvas');
+    big.width = big.height = n * 24;
+    const bc = big.getContext('2d');
+    bc.imageSmoothingEnabled = true;
+    bc.drawImage(small, 0, 0, big.width, big.height);
+    const url = big.toDataURL();
+    modelImgs.set(key, url);
+    return url;
+  }
+
+  function ensureModelOverlay(grid) {
+    const key = `${grid.lat},${grid.lon},${grid.n},${grid.step}`;
+    if (modelOverlay && key === modelKey) return;
+    if (modelOverlay) modelOverlay.remove();
+    if (modelBox) modelBox.remove();
+    modelKey = key;
+    modelImgs = new Map();
+    const h = ((grid.n - 1) / 2 + 0.5) * grid.step;
+    const bounds = [[grid.lat - h, grid.lon - h], [grid.lat + h, grid.lon + h]];
+    modelOverlay = L.imageOverlay(modelImage(grid, 0), bounds, { opacity: 0, interactive: false, zIndex: 4 }).addTo(map);
+    // นอกกรอบนี้ไม่มีข้อมูลแบบจำลอง — ไม่ได้แปลว่าไม่มีฝน
+    modelBox = L.rectangle(bounds, { color: '#52514e', weight: 1, opacity: 0, fill: false, interactive: false }).addTo(map);
+  }
+
+  function setFrames(S) {
+    const r = S.res.radar;
+    const meta = r && r.ok && r.data && r.data.meta;
+    const g = S.res.model_grid;
+    const grid = g && g.ok ? g.data : null;
+    if (meta) host = meta.host;
+    const vel = S.radar && S.radar.ok ? S.radar.velocity : null;
+    const radarPast = meta ? pickRadarPast(meta.past) : [];
+    const built = buildTimeline({ radarPast, hasFuture: !!(vel && vel.ok), gridTimes: grid ? grid.times : [], nowMs: S.now });
+    if (grid) ensureModelOverlay(grid);
+    const lastRadar = radarPast[radarPast.length - 1];
+    const fp = vel && vel.ok && lastRadar ? lastRadar.path : '';
+    if (fp !== futurePath) {
+      futurePath = fp;
+      if (futureLayer) { futureLayer.remove(); futureLayer = null; }
+      if (fp) futureLayer = L.tileLayer(`${host}${fp}/256/{z}/{x}/{y}/2/1_0.png`, { opacity: 0, maxNativeZoom: 7, maxZoom: 12, pane: 'radarFuture' }).addTo(map);
+    }
+    const s2 = built.frames.map(f => `${f.kind}:${f.ms}`).join('|') + (grid ? `@${grid.lat},${grid.lon}` : '');
+    if (s2 === sig) return;
     sig = s2;
-    layers.forEach(l => l.remove());
-    pastFrames = list;
-    // color 2 (Universal Blue) เป็นโทนเดียวที่เหลือ ; zoom ของภาพเรดาร์สูงสุด 7 ที่เกินจากนั้นขยายภาพเอา
-    tileOk = list.map(() => 0);
-    tileErr = list.map(() => 0);
-    layers = list.map((f, k) => L.tileLayer(`${meta.host}${f.path}/256/{z}/{x}/{y}/2/1_0.png`, {
-      opacity: 0, maxNativeZoom: 7, maxZoom: 12, zIndex: 5,
-    }).on('tileload', () => { tileOk[k]++; if (k === Math.min(idx, layers.length - 1)) updateInfo(); })
-      .on('tileerror', () => { tileErr[k]++; if (k === Math.min(idx, layers.length - 1)) updateInfo(); })
-      .addTo(map));
-    return true;
+    frames = built.frames;
+    nowIdx = built.nowIdx;
+    // layer เรดาร์ที่หลุดจากไทม์ไลน์แล้ว (เวลาเลื่อนไป) ทิ้งได้
+    const keep = new Set(frames.filter(f => f.kind === 'radar').map(f => f.path));
+    for (const [p, l] of radarLayers) if (!keep.has(p)) { l.remove(); radarLayers.delete(p); tiles.delete(p); }
+    $('radar-slider').max = String(Math.max(0, frames.length - 1));
+    renderScale(S.now);
+    showFrame(nowIdx);
   }
 
-  // ภาพล่วงหน้า = ภาพล่าสุดชุดเดียวกัน (โหลดซ้ำจากแคช ไม่เพิ่มคำขอ) วางใน pane แยกแล้วเลื่อนตามความเร็วเมฆฝน
-  function setFuture(meta, vel) {
-    const last = pastFrames[pastFrames.length - 1];
-    const s2 = vel && vel.ok && last ? last.path : '';
-    if (s2 === futureSig) return false;
-    futureSig = s2;
-    if (futureLayer) { futureLayer.remove(); futureLayer = null; }
-    if (s2) {
-      futureLayer = L.tileLayer(`${meta.host}${last.path}/256/{z}/{x}/{y}/2/1_0.png`, {
-        opacity: 0, maxNativeZoom: 7, maxZoom: 12, pane: 'radarFuture',
-      }).addTo(map);
-    }
-    return true;
-  }
-
-  function setFrames(meta, vel) {
-    const changed = setPast(meta) | setFuture(meta, vel);
-    if (!changed) return;
-    const last = pastFrames[pastFrames.length - 1];
-    const future = futureLayer
-      ? Array.from({ length: FUTURE_STEPS }, (_, k) => ({ time: last.time + (k + 1) * 600, kind: 'forecast', offsetMin: (k + 1) * 10 }))
-      : [];
-    frames = [...pastFrames, ...future];
-    const slider = $('radar-slider');
-    slider.max = String(Math.max(0, frames.length - 1));
-    const nowPos = frames.length > 1 ? ((pastFrames.length - 1) / (frames.length - 1)) * 100 : 100;
-    const scale = $('radar-scale');
-    if (scale) {
-      scale.innerHTML = `<span>−1 ชม.</span><span class="now" style="left:${nowPos}%">ตอนนี้</span>${future.length ? '<span>+1 ชม.</span>' : ''}`;
-    }
-    idx = Math.max(0, pastFrames.length - 1);
-    showFrame(idx);
+  function renderScale(nowMs) {
+    const el = $('radar-scale');
+    if (!el || !frames.length) return;
+    const lab = ms => {
+      const h = Math.round((ms - nowMs) / HOUR);
+      return h === 0 ? '' : `${h > 0 ? '+' : '−'}${Math.abs(h)} ชม.`;
+    };
+    const pos = frames.length > 1 ? (nowIdx / (frames.length - 1)) * 100 : 100;
+    el.innerHTML = `<span>${lab(frames[0].ms)}</span><span class="now" style="left:${pos}%">ตอนนี้</span><span>${lab(frames[frames.length - 1].ms)}</span>`;
   }
 
   function showFrame(i) {
-    if (!frames.length) return;
+    if (!frames.length || !map) return;
     idx = (i + frames.length) % frames.length;
     const f = frames[idx];
-    const forecast = f.kind === 'forecast';
-    layers.forEach((l, k) => l.setOpacity(!forecast && k === idx ? 0.75 : 0));
-    if (futureLayer) futureLayer.setOpacity(forecast ? 0.6 : 0);
+    for (const [p, l] of radarLayers) l.setOpacity(f.kind === 'radar' && f.path === p ? 0.75 : 0);
+    if (f.kind === 'radar') {
+      radarLayer(f.path).setOpacity(0.75);
+      const next = frames.slice(idx + 1).find(x => x.kind === 'radar');
+      if (next) radarLayer(next.path); // โหลดภาพถัดไปรอไว้ ภาพจะได้ไม่กะพริบ
+    }
+    if (futureLayer) futureLayer.setOpacity(f.kind === 'extrap' ? 0.6 : 0);
+    const v = lastS && lastS.radar && lastS.radar.velocity;
     if (futurePane) {
-      const v = lastS && lastS.radar && lastS.radar.velocity;
-      if (forecast && v && v.ok) {
+      let tr = '';
+      if (f.kind === 'extrap' && v && v.ok) {
         // ความเร็วคิดเป็นพิกเซลที่ zoom 7 ต่อนาที → แปลงเป็นพิกเซลบนจอที่ zoom ปัจจุบัน
         const k = Math.pow(2, map.getZoom() - 7) * f.offsetMin;
-        futurePane.style.transform = `translate(${(v.vx * k).toFixed(1)}px, ${(v.vy * k).toFixed(1)}px)`;
-      } else {
-        futurePane.style.transform = '';
+        tr = `translate(${(v.vx * k).toFixed(1)}px, ${(v.vy * k).toFixed(1)}px)`;
       }
+      futurePane.style.transform = tr;
     }
-    const ms = f.time * 1000;
-    let rel;
-    if (forecast) {
-      const ahead = Math.round((ms - Date.now()) / 60000);
-      rel = ahead > 0 ? `คาดการณ์ +${ahead} นาที` : 'คาดการณ์ (ตอนนี้)';
+    const g = lastS && lastS.res.model_grid;
+    const grid = g && g.ok ? g.data : null;
+    if (modelOverlay) {
+      const on = f.kind === 'model' && grid;
+      if (on) { modelOverlay.setUrl(modelImage(grid, f.t)); modelOverlay.setOpacity(0.75); }
+      else modelOverlay.setOpacity(0);
+      if (modelBox) modelBox.setStyle({ opacity: on ? 0.7 : 0 });
+    }
+
+    const now = Date.now();
+    const hrs = Math.max(1, Math.round(Math.abs(f.ms - now) / HOUR));
+    let text, cls = '';
+    if (f.kind === 'radar') text = `📡 ${U.bkkHM(f.ms)} น. · เรดาร์ · ${U.fmtAgo(f.ms, now)}`;
+    else if (f.kind === 'extrap') {
+      const ahead = Math.round((f.ms - now) / MIN);
+      text = `🔮 ${U.bkkHM(f.ms)} น. · คาดการณ์จากเรดาร์ ${ahead > 0 ? `+${ahead} นาที` : '(ตอนนี้)'}`;
+      cls = 'is-forecast';
     } else {
-      rel = U.fmtAgo(ms);
+      text = `🧮 ${U.bkkHM(f.ms)} น. · แบบจำลอง · ${f.ms < now ? `ย้อนหลัง ${hrs} ชม.` : `ล่วงหน้า +${hrs} ชม.`}`;
+      cls = 'is-model';
     }
     const t = $('radar-time');
-    t.textContent = `${forecast ? '🔮 ' : ''}${U.bkkHM(ms)} น. · ${rel}`;
-    t.classList.toggle('is-forecast', forecast);
+    t.textContent = text;
+    t.className = `radar-time ${cls}`;
     $('radar-slider').value = String(idx);
     updateInfo();
   }
 
-  // บอกให้ชัดว่า "ไม่เห็นฝน" เพราะไม่มีฝนจริง หรือเพราะโหลดภาพไม่สำเร็จ
+  // บอกให้ชัดว่าภาพที่เห็นมาจากไหน และ "ไม่เห็นฝน" เพราะไม่มีฝนจริงหรือเพราะโหลดไม่สำเร็จ
   function updateInfo() {
     const out = $('radar-info');
-    if (!out || !lastS) return;
+    if (!out || !lastS || !frames.length) return;
     const f = frames[idx];
-    const li = f && f.kind === 'forecast' ? pastFrames.length - 1 : idx;
-    const ok = tileOk[li] || 0, err = tileErr[li] || 0;
     const parts = [];
-    if (err && !ok) parts.push(`⚠️ โหลดภาพเรดาร์ช่วงเวลานี้ไม่สำเร็จ (${err} ภาพ) — RainViewer อาจจำกัดจำนวนคำขอ ลองใหม่ในอีกสักครู่`);
+    if (f.kind === 'radar') {
+      const t = tiles.get(f.path) || { ok: 0, err: 0 };
+      if (t.err && !t.ok) parts.push(`⚠️ โหลดภาพเรดาร์ช่วงเวลานี้ไม่สำเร็จ (${t.err} ภาพ) — RainViewer อาจจำกัดจำนวนคำขอ ลองใหม่ในอีกสักครู่`);
+    }
     const a = lastS.radar;
-    if (a && a.ok) {
-      if (a.atPointDbz != null && a.atPointDbz >= U.RAIN_DBZ) parts.push(`📡 ภาพล่าสุด ${U.bkkHM(a.frameTimeMs)} น.: มีฝนตกที่จุดนี้ (${U.dbzClass(a.atPointDbz).label})`);
-      else if (a.nearest) parts.push(`📡 ภาพล่าสุด ${U.bkkHM(a.frameTimeMs)} น.: ฝนใกล้สุดห่าง ~${Math.round(a.nearest.distKm)} กม. ทาง${U.compassTh(a.nearest.bearingDeg)}`);
-      else parts.push(`📡 ภาพล่าสุด ${U.bkkHM(a.frameTimeMs)} น.: ไม่พบฝนในรัศมี ~${Math.round(a.windowKm / 2)} กม. รอบจุดนี้ — ถ้าบนแผนที่ไม่มีสี แปลว่าตอนนี้ไม่มีฝนจริง`);
-    } else if (a && a.reason) {
-      parts.push(`ℹ️ ประเมินฝนรอบจุดจากภาพเรดาร์ไม่ได้ (${a.message || a.reason}) แต่ภาพบนแผนที่ยังดูได้`);
+    if (f.kind !== 'model') {
+      if (a && a.ok) {
+        if (a.atPointDbz != null && a.atPointDbz >= U.RAIN_DBZ) parts.push(`📡 ภาพล่าสุด ${U.bkkHM(a.frameTimeMs)} น.: มีฝนตกที่จุดนี้ (${U.dbzClass(a.atPointDbz).label})`);
+        else if (a.nearest) parts.push(`📡 ภาพล่าสุด ${U.bkkHM(a.frameTimeMs)} น.: ฝนใกล้สุดห่าง ~${Math.round(a.nearest.distKm)} กม. ทาง${U.compassTh(a.nearest.bearingDeg)}`);
+        else parts.push(`📡 ภาพล่าสุด ${U.bkkHM(a.frameTimeMs)} น.: ไม่พบฝนในรัศมี ~${Math.round(a.windowKm / 2)} กม. รอบจุดนี้ — ถ้าบนแผนที่ไม่มีสี แปลว่าตอนนี้ไม่มีฝนจริง`);
+      } else if (a && a.reason) {
+        parts.push(`ℹ️ ประเมินฝนรอบจุดจากภาพเรดาร์ไม่ได้ (${a.message || a.reason}) แต่ภาพบนแผนที่ยังดูได้`);
+      }
     }
     const v = a && a.ok && a.velocity;
-    if (f && f.kind === 'forecast' && v && v.ok) {
-      parts.push(`🔮 ภาพคาดการณ์: เลื่อนภาพล่าสุดตามทิศที่ฝนเคลื่อน${v.stationary ? ' (แทบไม่เคลื่อนที่)' : ` (ไปทาง${U.compassTh(v.headingDeg)} ~${Math.round(v.speedKmh)} กม./ชม.)`} — ไม่คิดการเกิด/สลายตัวของฝน ยิ่งไกลยิ่งคลาดเคลื่อน`);
-    } else if (!futureLayer && a) {
+    if (f.kind === 'extrap' && v && v.ok) {
+      parts.push(`🔮 เลื่อนภาพเรดาร์ล่าสุดตามทิศที่ฝนเคลื่อน${v.stationary ? ' (แทบไม่เคลื่อนที่)' : ` (ไปทาง${U.compassTh(v.headingDeg)} ~${Math.round(v.speedKmh)} กม./ชม.)`} — ไม่คิดการเกิด/สลายตัวของฝน ยิ่งไกลยิ่งคลาดเคลื่อน`);
+    }
+    if (f.kind === 'model') {
+      parts.push('🧮 ช่วงนี้ไม่มีภาพเรดาร์ (RainViewer ฟรีเก็บย้อนหลัง ~2 ชม. และไม่มีภาพล่วงหน้า) จึงแสดงฝนรายชั่วโมงจากแบบจำลองพยากรณ์ กริดราว 30 กม. ในกรอบสี่เหลี่ยม (นอกกรอบไม่มีข้อมูล) — ไม่ใช่การวัดจริง ฝนเฉพาะจุดอาจไม่ปรากฏ');
+    }
+    if (idx === nowIdx && f.kind === 'radar' && !frames.some(x => x.kind === 'extrap') && a) {
       parts.push(a.ok
-        ? 'ℹ️ ยังไม่มีภาพคาดการณ์ 1 ชม. ข้างหน้า — ต้องมีฝนในรัศมี ~57 กม. ให้ระบบหาทิศทางการเคลื่อนที่ได้'
-        : 'ℹ️ ไม่มีภาพคาดการณ์ 1 ชม. ข้างหน้า — ต้องอ่านค่าเรดาร์ได้ก่อนจึงจะคำนวณทิศทางได้');
+        ? 'ℹ️ ไม่มีภาพคาดการณ์จากเรดาร์ 1 ชม. ข้างหน้า — ต้องมีฝนในรัศมี ~57 กม. ให้หาทิศทางการเคลื่อนที่ได้ (ช่วงถัดไปใช้แบบจำลอง)'
+        : 'ℹ️ ไม่มีภาพคาดการณ์จากเรดาร์ — อ่านค่าเรดาร์ไม่ได้ จึงคำนวณทิศทางไม่ได้ (ช่วงถัดไปใช้แบบจำลอง)');
     }
     out.textContent = parts.join('\n');
   }
 
   function tick() {
     if (!playing || document.hidden || frames.length < 2) return;
-    const lastPast = pastFrames.length - 1;
-    // ค้างภาพล่าสุด (ตอนนี้) และภาพสุดท้ายไว้นานขึ้น ก่อนเดินต่อ/วนใหม่
-    if ((idx === lastPast || idx === frames.length - 1) && hold < 3) { hold++; return; }
+    // ค้างที่ "ตอนนี้" และภาพสุดท้ายไว้นานขึ้นก่อนเดินต่อ/วนใหม่
+    if ((idx === nowIdx || idx === frames.length - 1) && hold < 3) { hold++; return; }
     hold = 0;
     showFrame(idx + 1);
   }
@@ -198,14 +302,16 @@
       return;
     }
     ensureMap(S.loc);
-    const r = S.res.radar;
-    const meta = r && r.ok && r.data && r.data.meta;
-    if (!meta || !meta.past.length) {
-      status.textContent = !r ? 'กำลังโหลดภาพเรดาร์...' : r.ok ? 'ไม่มีภาพเรดาร์' : `⚠️ โหลดภาพเรดาร์ไม่สำเร็จ: ${r.error}`;
+    const r = S.res.radar, g = S.res.model_grid;
+    const hasRadar = r && r.ok && r.data && r.data.meta && r.data.meta.past.length;
+    const hasGrid = g && g.ok;
+    const radarErr = `⚠️ โหลดภาพเรดาร์ไม่สำเร็จ${r && r.error ? `: ${r.error}` : ''}`;
+    if (!hasRadar && !hasGrid) {
+      status.textContent = !r && !g ? 'กำลังโหลดภาพเรดาร์...' : radarErr;
       return;
     }
-    status.textContent = '';
-    setFrames(meta, S.radar && S.radar.ok ? S.radar.velocity : null);
+    status.textContent = hasRadar ? '' : `${radarErr} — แสดงแบบจำลองแทน`;
+    setFrames(S);
     drawArrow(S);
     syncControls();
     setTimeout(() => map && map.invalidateSize(), 0);
@@ -214,5 +320,5 @@
   function libLoaded() { if (lastS) render(lastS); }
   function libError() { libFailed = true; if (lastS) render(lastS); }
 
-  WX.radarMap = { render, libLoaded, libError };
+  WX.radarMap = { render, libLoaded, libError, buildTimeline, pickRadarPast, rateColor };
 })(typeof window !== 'undefined' ? window : globalThis);

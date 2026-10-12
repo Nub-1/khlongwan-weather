@@ -278,6 +278,7 @@ section[id], .hero { scroll-margin-top: 56px; }
 .radar-scale { position: relative; height: 16px; white-space: nowrap; font-size: 0.72rem; color: var(--axis-ink); display: flex; justify-content: space-between; }
 .radar-scale .now { position: absolute; transform: translateX(-50%); color: var(--ink); font-weight: 600; }
 .radar-time.is-forecast { color: var(--serious); font-style: italic; }
+.radar-time.is-model { color: var(--ink2); font-style: italic; }
 .radar-time { order: -1; flex: 1 0 100%; font-size: 0.9rem; font-weight: 600; font-variant-numeric: tabular-nums; }
 
 /* ===== Insights ===== */

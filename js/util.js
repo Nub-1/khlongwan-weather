@@ -2,7 +2,7 @@
   'use strict';
   const WX = (root.WX = root.WX || {});
   // เปลี่ยนทุกครั้งที่ออกเวอร์ชันใหม่ พร้อมกับ ?v= ใน index.html เพื่อบังคับให้เบราว์เซอร์โหลดไฟล์ใหม่
-  WX.VERSION = '2.2.0';
+  WX.VERSION = '2.3.0';
   WX.RELEASED = '12 ต.ค. 2569';
 
   const TZ = 'Asia/Bangkok';
