@@ -337,3 +337,5 @@ footer a { color: var(--r3); }
 
 .radar-info { margin: 8px 0 0; font-size: 0.85rem; white-space: pre-line; }
 .radar-info:empty { display: none; }
+
+.model-overlay { image-rendering: pixelated; }
