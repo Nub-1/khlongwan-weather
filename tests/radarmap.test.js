@@ -57,3 +57,21 @@ test('gridPoints / parseGrid', () => {
   assert.equal(parsed.values[1][0], null);
   assert.throws(() => SRC.parseGrid(json.slice(1), g));
 });
+
+test('cellAt: หาช่องกริดของพิกัด (แถว 0 = เหนือสุด)', () => {
+  const g = SRC.gridPoints(11.75, 99.77);
+  const mid = RM.cellAt(g, 11.75, 99.77);
+  assert.deepEqual([mid.row, mid.col, mid.p], [3, 3, 24]);
+  assert.equal(RM.cellAt(g, 11.75 + 3.4 * g.step, 99.77).row, 0);
+  assert.equal(RM.cellAt(g, 11.75 - 3.4 * g.step, 99.77).row, 6);
+  assert.equal(RM.cellAt(g, 11.75, 99.77 - 3.4 * g.step).col, 0);
+  assert.equal(RM.cellAt(g, 15, 99.77), null);
+  assert.equal(RM.cellAt(g, 11.75, 110), null);
+});
+
+test('rateLabel', () => {
+  assert.equal(RM.rateLabel(0), 'ไม่มีฝน');
+  assert.equal(RM.rateLabel(0.3), 'ฝนเบามาก');
+  assert.equal(RM.rateLabel(3), 'ฝนปานกลาง');
+  assert.equal(RM.rateLabel(null), 'ไม่มีข้อมูล');
+});
