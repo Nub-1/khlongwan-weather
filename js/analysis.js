@@ -111,10 +111,10 @@
       const bias = bt.reduce((a, x) => a + x.sc.freqBias, 0) / bt.length;
       const top = [...bt].filter(x => x.sc.csi != null).sort((a, b) => b.sc.csi - a.sc.csi)[0];
       let text = null;
-      if (bias > 1.3) text = `ย้อนหลัง 30 วันที่จุดนี้ โมเดลเตือนวันฝนบ่อยเกินจริง (×${bias.toFixed(1)}) — ตัวเลขโอกาสฝนอาจสูงเกินไป`;
-      else if (bias < 0.75) text = `ย้อนหลัง 30 วันที่จุดนี้ โมเดลให้วันฝนน้อยกว่าจริง (×${bias.toFixed(1)}) — ฝนอาจมาบ่อยกว่าที่พยากรณ์`;
+      if (bias > 1.3) text = `ย้อนหลังที่จุดนี้ โมเดลเตือนวันฝนบ่อยเกินจริง (×${bias.toFixed(1)}) — ตัวเลขโอกาสฝนอาจสูงเกินไป`;
+      else if (bias < 0.75) text = `ย้อนหลังที่จุดนี้ โมเดลให้วันฝนน้อยกว่าจริง (×${bias.toFixed(1)}) — ฝนอาจมาบ่อยกว่าที่พยากรณ์`;
       if (text) out.push({ w: 4, tone: 'warn', icon: '🎯', text: text + (top ? ` · แม่นสุด: ${top.label}` : '') });
-      else if (top) out.push({ w: 3, tone: 'info', icon: '🎯', text: `ย้อนหลัง 30 วัน โมเดลที่จุดนี้เตือนฝนได้สมดุล · แม่นสุด: ${top.label}` });
+      else if (top) out.push({ w: 3, tone: 'info', icon: '🎯', text: `ย้อนหลังที่จุดนี้ โมเดลเตือนฝนได้สมดุล · แม่นสุด: ${top.label}` });
     }
 
     return out.sort((a, b) => b.w - a.w);

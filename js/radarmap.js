@@ -76,6 +76,7 @@
   const radarLayers = new Map(), tiles = new Map();
   let frames = [], nowIdx = 0, idx = 0, sig = '', locKey = '', host = '';
   let playing = true, hold = 0, lastS = null, libFailed = false;
+  let expanded = false;
 
   const textEl = s => { const e = document.createElement('span'); e.textContent = s; return e; };
 
@@ -92,6 +93,10 @@
       futurePane.style.pointerEvents = 'none';
       map.on('zoomend', () => showFrame(idx));
       map.on('click', onMapClick);
+      $('radar-expand').onclick = () => setExpanded(!expanded);
+      document.addEventListener('keydown', e => { if (e.key === 'Escape' && expanded) setExpanded(false); });
+      // ปุ่มย้อนกลับของเครื่อง (Android) ปิดแผนที่เต็มจอแทนที่จะออกจากหน้าเว็บ
+      window.addEventListener('popstate', () => { if (expanded) setExpanded(false, true); });
       $('radar-play').onclick = () => { playing = !playing; syncControls(); };
       $('radar-slider').oninput = e => { playing = false; showFrame(Number(e.target.value)); syncControls(); };
       setInterval(tick, STEP_MS);
@@ -313,6 +318,29 @@
     if ((idx === nowIdx || idx === frames.length - 1) && hold < 3) { hold++; return; }
     hold = 0;
     showFrame(idx + 1);
+  }
+
+  // เต็มจอด้วย CSS (ไม่ใช้ Fullscreen API ซึ่งบน iOS ใช้กับ <div> ไม่ได้) ; เต็มจอแล้วลาก/ซูมแผนที่ได้เต็มที่
+  function setExpanded(on, fromPop) {
+    if (!map || on === expanded) return;
+    expanded = on;
+    const sec = $('sec-radar');
+    sec.classList.toggle('radar-full', on);
+    document.body.classList.toggle('no-scroll', on);
+    const b = $('radar-expand');
+    b.textContent = on ? '✕ ปิด' : '⤢ ขยาย';
+    b.setAttribute('aria-label', on ? 'ปิดแผนที่เต็มจอ' : 'ขยายแผนที่เต็มจอ');
+    b.setAttribute('aria-expanded', String(on));
+    if (on) {
+      map.dragging.enable();
+      map.scrollWheelZoom.enable();
+      try { history.pushState({ radarFull: 1 }, ''); } catch (e) { /* file:// */ }
+    } else {
+      if (L.Browser.mobile) map.dragging.disable();
+      map.scrollWheelZoom.disable();
+      if (!fromPop && history.state && history.state.radarFull) { try { history.back(); } catch (e) { /* ไม่เป็นไร */ } }
+    }
+    setTimeout(() => { map.invalidateSize(); if (on) sec.scrollTop = 0; }, 60);
   }
 
   function syncControls() {
