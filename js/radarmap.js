@@ -50,12 +50,33 @@
     return [0xff, 0x81, 0xff];
   }
 
+  // ช่องกริดที่ครอบคลุมพิกัดนี้ (แถว 0 = เหนือสุด) — คืน null ถ้าอยู่นอกกรอบ
+  function cellAt(grid, lat, lon) {
+    const h = ((grid.n - 1) / 2 + 0.5) * grid.step;
+    const row = Math.floor((grid.lat + h - lat) / grid.step);
+    const col = Math.floor((lon - (grid.lon - h)) / grid.step);
+    if (row < 0 || col < 0 || row >= grid.n || col >= grid.n) return null;
+    return { row, col, p: row * grid.n + col };
+  }
+
+  function rateLabel(mm) {
+    if (mm == null) return 'ไม่มีข้อมูล';
+    if (mm < 0.1) return 'ไม่มีฝน';
+    if (mm < 0.5) return 'ฝนเบามาก';
+    if (mm < 2.5) return 'ฝนเบา';
+    if (mm < 7.6) return 'ฝนปานกลาง';
+    if (mm < 15) return 'ฝนหนัก';
+    if (mm < 30) return 'ฝนหนักมาก';
+    return 'ฝนรุนแรง';
+  }
+
   // ============ แผนที่ ============
   let map = null, marker = null, rings = [], arrow = null, futurePane = null, futureLayer = null, futurePath = '';
   let modelOverlay = null, modelBox = null, modelKey = '', modelImgs = new Map();
   const radarLayers = new Map(), tiles = new Map();
   let frames = [], nowIdx = 0, idx = 0, sig = '', locKey = '', host = '';
   let playing = true, hold = 0, lastS = null, libFailed = false;
+  let expanded = false;
 
   const textEl = s => { const e = document.createElement('span'); e.textContent = s; return e; };
 
@@ -71,6 +92,11 @@
       futurePane.style.zIndex = 250;
       futurePane.style.pointerEvents = 'none';
       map.on('zoomend', () => showFrame(idx));
+      map.on('click', onMapClick);
+      $('radar-expand').onclick = () => setExpanded(!expanded);
+      document.addEventListener('keydown', e => { if (e.key === 'Escape' && expanded) setExpanded(false); });
+      // ปุ่มย้อนกลับของเครื่อง (Android) ปิดแผนที่เต็มจอแทนที่จะออกจากหน้าเว็บ
+      window.addEventListener('popstate', () => { if (expanded) setExpanded(false, true); });
       $('radar-play').onclick = () => { playing = !playing; syncControls(); };
       $('radar-slider').oninput = e => { playing = false; showFrame(Number(e.target.value)); syncControls(); };
       setInterval(tick, STEP_MS);
@@ -101,25 +127,27 @@
     return radarLayers.get(path);
   }
 
+  // วาดเป็นช่องสี่เหลี่ยมคมชัด (ไม่เบลอ) ให้เห็นว่าข้อมูลจริงหยาบแค่ช่องละ ~30 กม. ;
+  // ขอบเข้มรอบช่องที่มีฝน กันสีฟ้าอ่อนกลืนกับสีทะเลบนแผนที่
+  const CELL_PX = 32;
   function modelImage(grid, t) {
     const key = `${grid.lat},${grid.lon},${grid.times[t]}`;
     if (modelImgs.has(key)) return modelImgs.get(key);
     const n = grid.n;
-    const small = document.createElement('canvas');
-    small.width = small.height = n;
-    const sc = small.getContext('2d');
-    const img = sc.createImageData(n, n);
+    const cv = document.createElement('canvas');
+    cv.width = cv.height = n * CELL_PX;
+    const c2 = cv.getContext('2d');
     grid.values[t].forEach((v, p) => {
       const c = rateColor(v);
-      if (c) img.data.set([c[0], c[1], c[2], 210], p * 4);
+      if (!c) return;
+      const x = (p % n) * CELL_PX, y = Math.floor(p / n) * CELL_PX;
+      c2.fillStyle = `rgba(${c[0]},${c[1]},${c[2]},0.8)`;
+      c2.fillRect(x, y, CELL_PX, CELL_PX);
+      c2.strokeStyle = 'rgba(20,30,50,0.55)';
+      c2.lineWidth = 2;
+      c2.strokeRect(x + 1, y + 1, CELL_PX - 2, CELL_PX - 2);
     });
-    sc.putImageData(img, 0, 0);
-    const big = document.createElement('canvas');
-    big.width = big.height = n * 24;
-    const bc = big.getContext('2d');
-    bc.imageSmoothingEnabled = true;
-    bc.drawImage(small, 0, 0, big.width, big.height);
-    const url = big.toDataURL();
+    const url = cv.toDataURL();
     modelImgs.set(key, url);
     return url;
   }
@@ -133,7 +161,7 @@
     modelImgs = new Map();
     const h = ((grid.n - 1) / 2 + 0.5) * grid.step;
     const bounds = [[grid.lat - h, grid.lon - h], [grid.lat + h, grid.lon + h]];
-    modelOverlay = L.imageOverlay(modelImage(grid, 0), bounds, { opacity: 0, interactive: false, zIndex: 4 }).addTo(map);
+    modelOverlay = L.imageOverlay(modelImage(grid, 0), bounds, { opacity: 0, interactive: false, zIndex: 4, className: 'model-overlay' }).addTo(map);
     // นอกกรอบนี้ไม่มีข้อมูลแบบจำลอง — ไม่ได้แปลว่าไม่มีฝน
     modelBox = L.rectangle(bounds, { color: '#52514e', weight: 1, opacity: 0, fill: false, interactive: false }).addTo(map);
   }
@@ -179,6 +207,19 @@
     el.innerHTML = `<span>${lab(frames[0].ms)}</span><span class="now" style="left:${pos}%">ตอนนี้</span><span>${lab(frames[frames.length - 1].ms)}</span>`;
   }
 
+  // แตะที่แผนที่ตอนดูภาพแบบจำลอง → บอกปริมาณฝนของช่องที่แตะ
+  function onMapClick(e) {
+    const f = frames[idx];
+    const g = lastS && lastS.res.model_grid;
+    if (!f || f.kind !== 'model' || !g || !g.ok) return;
+    const cell = cellAt(g.data, e.latlng.lat, e.latlng.lng);
+    if (!cell) return;
+    const v = g.data.values[f.t][cell.p];
+    L.popup({ closeButton: false, offset: [0, -2] }).setLatLng(e.latlng)
+      .setContent(textEl(`แบบจำลอง ${U.bkkHM(f.ms)} น.: ${v == null ? 'ไม่มีข้อมูล' : `${v < 0.05 ? '0' : v.toFixed(1)} มม./ชม. (${rateLabel(v)})`}`))
+      .openOn(map);
+  }
+
   function showFrame(i) {
     if (!frames.length || !map) return;
     idx = (i + frames.length) % frames.length;
@@ -204,7 +245,7 @@
     const grid = g && g.ok ? g.data : null;
     if (modelOverlay) {
       const on = f.kind === 'model' && grid;
-      if (on) { modelOverlay.setUrl(modelImage(grid, f.t)); modelOverlay.setOpacity(0.75); }
+      if (on) { modelOverlay.setUrl(modelImage(grid, f.t)); modelOverlay.setOpacity(1); }
       else modelOverlay.setOpacity(0);
       if (modelBox) modelBox.setStyle({ opacity: on ? 0.7 : 0 });
     }
@@ -253,7 +294,15 @@
       parts.push(`🔮 เลื่อนภาพเรดาร์ล่าสุดตามทิศที่ฝนเคลื่อน${v.stationary ? ' (แทบไม่เคลื่อนที่)' : ` (ไปทาง${U.compassTh(v.headingDeg)} ~${Math.round(v.speedKmh)} กม./ชม.)`} — ไม่คิดการเกิด/สลายตัวของฝน ยิ่งไกลยิ่งคลาดเคลื่อน`);
     }
     if (f.kind === 'model') {
-      parts.push('🧮 ช่วงนี้ไม่มีภาพเรดาร์ (RainViewer ฟรีเก็บย้อนหลัง ~2 ชม. และไม่มีภาพล่วงหน้า) จึงแสดงฝนรายชั่วโมงจากแบบจำลองพยากรณ์ กริดราว 30 กม. ในกรอบสี่เหลี่ยม (นอกกรอบไม่มีข้อมูล) — ไม่ใช่การวัดจริง ฝนเฉพาะจุดอาจไม่ปรากฏ');
+      const g = lastS.res.model_grid;
+      const grid = g && g.ok ? g.data : null;
+      if (grid) {
+        const here = cellAt(grid, lastS.loc.lat, lastS.loc.lon);
+        const v = here ? grid.values[f.t][here.p] : null;
+        const mx = grid.values[f.t].reduce((m, x) => (x != null && x > m ? x : m), 0);
+        parts.push(`🧮 ที่จุดของคุณ (ช่องกริดตรงกลาง): ${v == null ? 'ไม่มีข้อมูล' : `${v < 0.05 ? '0' : v.toFixed(1)} มม./ชม. — ${rateLabel(v)}`} · มากสุดในกรอบ ${mx < 0.05 ? '0' : mx.toFixed(1)} มม./ชม.`);
+      }
+      parts.push('ช่วงนี้ไม่มีภาพเรดาร์ (RainViewer ฟรีเก็บย้อนหลัง ~2 ชม. และไม่มีภาพล่วงหน้า) จึงแสดงฝนรายชั่วโมงจากแบบจำลอง — แต่ละช่องสี่เหลี่ยม ≈ 30 กม. ขอบเข้ม = ช่องที่มีฝน แตะช่องเพื่อดูค่า · นอกกรอบเส้นประไม่มีข้อมูล · ไม่ใช่การวัดจริง ฝนก้อนเล็กเฉพาะจุดอาจไม่ปรากฏ');
     }
     if (idx === nowIdx && f.kind === 'radar' && !frames.some(x => x.kind === 'extrap') && a) {
       parts.push(a.ok
@@ -269,6 +318,29 @@
     if ((idx === nowIdx || idx === frames.length - 1) && hold < 3) { hold++; return; }
     hold = 0;
     showFrame(idx + 1);
+  }
+
+  // เต็มจอด้วย CSS (ไม่ใช้ Fullscreen API ซึ่งบน iOS ใช้กับ <div> ไม่ได้) ; เต็มจอแล้วลาก/ซูมแผนที่ได้เต็มที่
+  function setExpanded(on, fromPop) {
+    if (!map || on === expanded) return;
+    expanded = on;
+    const sec = $('sec-radar');
+    sec.classList.toggle('radar-full', on);
+    document.body.classList.toggle('no-scroll', on);
+    const b = $('radar-expand');
+    b.textContent = on ? '✕ ปิด' : '⤢ ขยาย';
+    b.setAttribute('aria-label', on ? 'ปิดแผนที่เต็มจอ' : 'ขยายแผนที่เต็มจอ');
+    b.setAttribute('aria-expanded', String(on));
+    if (on) {
+      map.dragging.enable();
+      map.scrollWheelZoom.enable();
+      try { history.pushState({ radarFull: 1 }, ''); } catch (e) { /* file:// */ }
+    } else {
+      if (L.Browser.mobile) map.dragging.disable();
+      map.scrollWheelZoom.disable();
+      if (!fromPop && history.state && history.state.radarFull) { try { history.back(); } catch (e) { /* ไม่เป็นไร */ } }
+    }
+    setTimeout(() => { map.invalidateSize(); if (on) sec.scrollTop = 0; }, 60);
   }
 
   function syncControls() {
@@ -320,5 +392,5 @@
   function libLoaded() { if (lastS) render(lastS); }
   function libError() { libFailed = true; if (lastS) render(lastS); }
 
-  WX.radarMap = { render, libLoaded, libError, buildTimeline, pickRadarPast, rateColor };
+  WX.radarMap = { render, libLoaded, libError, buildTimeline, pickRadarPast, rateColor, cellAt, rateLabel };
 })(typeof window !== 'undefined' ? window : globalThis);

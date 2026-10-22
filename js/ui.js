@@ -291,26 +291,35 @@
     if (!r || !r.ok) return null;
     const d = r.data;
     const obs = new Map();
-    (d.obsTimes || []).forEach((t, i) => { const v = d.obsValues?.[i]; if (v != null) obs.set(t, v); });
+    (d.obs.times || []).forEach((t, i) => { const v = d.obs.values[i]; if (v != null && t >= d.start && t <= d.end) obs.set(t, v); });
     return WX.sources.BACKTEST_MODELS.map(m => {
-      const pm = d.perModel[m.id];
-      if (!pm) return null;
-      const sc = E.scoreForecasts(obs, E.dailyFromHourly(pm.times, pm.values), 1);
-      return sc ? { m, label: m.label, sc } : null;
+      const pm = d.models[m.id];
+      if (!pm || pm.error) return null;
+      const fc = new Map();
+      pm.times.forEach((t, i) => { if (pm.values[i] != null) fc.set(t, pm.values[i]); });
+      const sc = E.scoreForecasts(obs, fc, 1);
+      return sc ? { m, label: m.label, sc, mode: pm.mode } : null;
     }).filter(Boolean);
   }
 
   function renderReliability(S, el) {
     const r = S.res.backtest;
     if (!r) { el.innerHTML = '<p class="muted">กำลังโหลด...</p>'; return; }
-    if (!r.ok) { el.innerHTML = `<p class="muted">ยังคำนวณไม่ได้: ${short(r.error)}</p>`; return; }
+    if (!r.ok) { el.innerHTML = `<p class="note warn-note">ยังคำนวณไม่ได้: ${short(r.error)}</p><p class="muted">กด "รีเฟรช" ด้านบนเพื่อลองใหม่ · ถ้ายังไม่ได้ ส่งข้อความนี้มาให้ผู้พัฒนา</p>`; return; }
     const rows = S.backtest || [];
-    if (!rows.length) { el.innerHTML = '<p class="muted">ข้อมูลย้อนหลังไม่พอสำหรับประเมิน</p>'; return; }
+    const errs = WX.sources.BACKTEST_MODELS.map(m => ({ m, e: r.data.models[m.id] && r.data.models[m.id].error })).filter(x => x.e);
+    const errHtml = errs.length || r.data.models._fallbackError
+      ? `<p class="note warn-note">ดึงข้อมูลบางโมเดลไม่ได้: ${errs.map(x => `${U.esc(x.m.label)} (${short(String(x.e).replace(x.m.label + ': ', ''))})`).join(' · ')}${r.data.models._fallbackError ? ` · แผนสำรอง: ${short(r.data.models._fallbackError)}` : ''}</p>` : '';
+    if (!rows.length) { el.innerHTML = `<p class="muted">ข้อมูลย้อนหลังไม่พอสำหรับประเมิน</p>${errHtml}`; return; }
+    const near = rows.some(x => x.mode === 'near');
+    const modeNote = near
+      ? '<p class="note warn-note">⚠️ ดึงข้อมูล "พยากรณ์ล่วงหน้า 1 วัน" ย้อนหลังไม่ได้ จึงเทียบด้วยค่าของโมเดลใกล้เวลาจริงแทน (ผลจะดูดีกว่าพยากรณ์ล่วงหน้าจริง) — ใช้เทียบว่าโมเดลไหนจับฝนที่จุดนี้ได้ดีกว่า ไม่ใช่ตัวเลขความแม่นของพยากรณ์ล่วงหน้า</p>' : '';
     const pct = v => (v == null ? '–' : `${Math.round(v * 100)}%`);
     const best = rows.filter(x => x.sc.csi != null).sort((a, b) => b.sc.csi - a.sc.csi)[0];
     const n = rows[0].sc.n;
     el.innerHTML = `
-      <p>พยากรณ์ล่วงหน้า 1 วัน เทียบกับฝนจริงย้อนหลัง <b>${n} วัน</b> ที่จุดนี้ (นับวันที่ฝน ≥ 1 มม. · ฝนตกจริง ${Math.round(rows[0].sc.baseRate * 100)}% ของวัน)</p>
+      ${modeNote}${errHtml}
+      <p>${near ? 'ค่าโมเดลใกล้เวลาจริง' : 'พยากรณ์ล่วงหน้า 1 วัน'} เทียบกับฝนจริงย้อนหลัง <b>${n} วัน</b> ที่จุดนี้ (นับวันที่ฝน ≥ 1 มม. · ฝนตกจริง ${Math.round(rows[0].sc.baseRate * 100)}% ของวัน)</p>
       <div class="table-wrap"><table class="rel">
         <thead><tr><th>โมเดล</th><th title="จากวันที่ฝนตกจริง โมเดลเตือนถูกกี่ %">จับฝนได้</th><th title="จากวันที่โมเดลเตือน ไม่มีฝนจริงกี่ %">เตือนผิด</th><th title="คะแนนรวม (ยิ่งสูงยิ่งดี)">คะแนนรวม</th><th title="มากกว่า 1 = เตือนฝนบ่อยเกินจริง">เตือนบ่อยเกิน/ขาด</th><th title="ค่าเฉลี่ยความคลาดเคลื่อนปริมาณรายวัน">คลาดเคลื่อน</th></tr></thead>
         <tbody>${rows.map(x => `<tr${best && x === best ? ' class="best"' : ''}><td>${U.esc(x.m.label)}</td><td>${pct(x.sc.pod)}</td><td>${pct(x.sc.far)}</td><td>${x.sc.csi == null ? '–' : x.sc.csi.toFixed(2)}</td><td>${x.sc.freqBias == null ? '–' : '×' + x.sc.freqBias.toFixed(1)}</td><td>${U.fmtMm(x.sc.mae)} มม.</td></tr>`).join('')}</tbody>

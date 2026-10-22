@@ -57,3 +57,37 @@ test('gridPoints / parseGrid', () => {
   assert.equal(parsed.values[1][0], null);
   assert.throws(() => SRC.parseGrid(json.slice(1), g));
 });
+
+test('cellAt: หาช่องกริดของพิกัด (แถว 0 = เหนือสุด)', () => {
+  const g = SRC.gridPoints(11.75, 99.77);
+  const mid = RM.cellAt(g, 11.75, 99.77);
+  assert.deepEqual([mid.row, mid.col, mid.p], [3, 3, 24]);
+  assert.equal(RM.cellAt(g, 11.75 + 3.4 * g.step, 99.77).row, 0);
+  assert.equal(RM.cellAt(g, 11.75 - 3.4 * g.step, 99.77).row, 6);
+  assert.equal(RM.cellAt(g, 11.75, 99.77 - 3.4 * g.step).col, 0);
+  assert.equal(RM.cellAt(g, 15, 99.77), null);
+  assert.equal(RM.cellAt(g, 11.75, 110), null);
+});
+
+test('rateLabel', () => {
+  assert.equal(RM.rateLabel(0), 'ไม่มีฝน');
+  assert.equal(RM.rateLabel(0.3), 'ฝนเบามาก');
+  assert.equal(RM.rateLabel(3), 'ฝนปานกลาง');
+  assert.equal(RM.rateLabel(null), 'ไม่มีข้อมูล');
+});
+
+test('parsePrevRuns: รับทั้งชื่อตัวแปรมี suffix โมเดลและไม่มี', () => {
+  const times = ['2026-10-12T01:00', '2026-10-12T02:00'];
+  assert.deepEqual(SRC.parsePrevRuns({ hourly: { time: times, precipitation_previous_day1: [1, 2] } }, 'gfs_seamless').values, [1, 2]);
+  assert.deepEqual(SRC.parsePrevRuns({ hourly: { time: times, precipitation_previous_day1_gfs_seamless: [3, 4] } }, 'gfs_seamless').values, [3, 4]);
+  assert.equal(SRC.parsePrevRuns({ hourly: { time: times, temperature_2m: [1, 2] } }, 'gfs_seamless'), null);
+  assert.equal(SRC.parsePrevRuns({}, 'x'), null);
+});
+
+test('parseDailyModels: อ่านฝนรายวันแยกโมเดล', () => {
+  const j = { daily: { time: ['2026-10-12'], precipitation_sum_ecmwf_ifs025: [4], precipitation_sum_gfs_seamless: [0] } };
+  const out = SRC.parseDailyModels(j);
+  assert.deepEqual(Object.keys(out).sort(), ['ecmwf_ifs025', 'gfs_seamless']);
+  assert.deepEqual(out.ecmwf_ifs025.values, [4]);
+  assert.deepEqual(SRC.parseDailyModels({}), {});
+});

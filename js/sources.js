@@ -20,7 +20,10 @@
     try {
       const r = await fetch(url, { signal: ctl.signal });
       if (!r.ok) {
-        const e = new Error(r.status === 429 ? 'ถูกจำกัดจำนวนคำขอ (HTTP 429)' : `HTTP ${r.status}`);
+        // Open-Meteo ตอบ 400 พร้อม {"error":true,"reason":"..."} — เอาเหตุผลจริงมาแสดง จะได้รู้ว่าพารามิเตอร์ตัวไหนใช้ไม่ได้
+        let reason = '';
+        try { const j = await r.json(); if (j && j.reason) reason = `: ${String(j.reason).slice(0, 140)}`; } catch (_) { /* ไม่ใช่ JSON */ }
+        const e = new Error((r.status === 429 ? 'ถูกจำกัดจำนวนคำขอ (HTTP 429)' : `HTTP ${r.status}`) + reason);
         e.status = r.status;
         throw e;
       }
@@ -118,32 +121,63 @@
     { id: 'jma_seamless', label: 'JMA' },
   ];
 
-  // ชื่อตัวแปรเมื่อขอหลายโมเดล = precipitation_previous_day1_<model> ; โมเดลเดียวไม่มี suffix
-  function parsePrevRuns(json, models) {
+  // ชื่อตัวแปรอาจมี suffix ชื่อโมเดลต่อท้ายหรือไม่ก็ได้ — รับทั้งสองแบบ
+  function parsePrevRuns(json, modelId) {
     const h = json && json.hourly;
-    if (!h || !h.time) return {};
+    if (!h || !h.time) return null;
+    const key = h[`precipitation_previous_day1_${modelId}`] ? `precipitation_previous_day1_${modelId}`
+      : Object.keys(h).find(k => k.startsWith('precipitation_previous_day1'));
+    return key ? { times: h.time, values: h[key] } : null;
+  }
+
+  // แผนสำรอง: ค่าฝนรายวันของแต่ละโมเดลจาก forecast API (ช่วงใกล้เวลาจริง ไม่ใช่พยากรณ์ล่วงหน้า 1 วัน)
+  function parseDailyModels(json) {
+    const d = json && json.daily;
+    if (!d || !d.time) return {};
     const out = {};
-    for (const m of models) {
-      const key = h[`precipitation_previous_day1_${m}`] ? `precipitation_previous_day1_${m}`
-        : models.length === 1 && h.precipitation_previous_day1 ? 'precipitation_previous_day1' : null;
-      if (key) out[m] = { times: h.time, values: h[key] };
+    for (const m of BACKTEST_MODELS) {
+      const arr = d[`precipitation_sum_${m.id}`];
+      if (arr) out[m.id] = { times: d.time, values: arr };
     }
     return out;
   }
 
+  // ขอทีละโมเดล: โมเดลไหนไม่รองรับก็ล้มเฉพาะตัวนั้น ไม่ลากตัวอื่นไปด้วย
   async function backtest(loc) {
     const today = U.bkkDateStr();
     const start = U.addDays(today, -35), end = U.addDays(today, -6);
-    const ids = BACKTEST_MODELS.map(m => m.id);
-    const prevBase = `${OM.prev}?latitude=${loc.lat}&longitude=${loc.lon}&hourly=precipitation_previous_day1&past_days=36&forecast_days=1&${TZ_Q}&models=${ids.join(',')}`;
     const archBase = `${OM.archive}?latitude=${loc.lat}&longitude=${loc.lon}&start_date=${start}&end_date=${end}&daily=precipitation_sum&${TZ_Q}`;
-    const [prev, arch] = await Promise.all([
-      firstOk('Previous runs', [`${prevBase}&cell_selection=${CELL}`, prevBase]),
-      firstOk('Archive', [`${archBase}&models=era5_land&cell_selection=${CELL}`, `${archBase}&models=era5_land`, archBase]),
-    ]);
-    const perModel = parsePrevRuns(prev, ids);
-    if (!Object.keys(perModel).length) throw new Error('รูปแบบข้อมูล previous runs ไม่ตรงที่คาด');
-    return { start, end, perModel, obsTimes: arch.daily && arch.daily.time, obsValues: arch.daily && arch.daily.precipitation_sum };
+    const arch = await firstOk('ERA5-Land', [`${archBase}&models=era5_land&cell_selection=${CELL}`, `${archBase}&models=era5_land`, archBase]);
+    const obs = { times: (arch.daily && arch.daily.time) || [], values: (arch.daily && arch.daily.precipitation_sum) || [] };
+
+    const models = {};
+    await Promise.all(BACKTEST_MODELS.map(async m => {
+      const base = `${OM.prev}?latitude=${loc.lat}&longitude=${loc.lon}&hourly=precipitation_previous_day1&past_days=36&forecast_days=1&${TZ_Q}&models=${m.id}`;
+      try {
+        const j = await firstOk(m.label, [`${base}&cell_selection=${CELL}`, base]);
+        const pm = parsePrevRuns(j, m.id);
+        if (!pm) throw new Error('ไม่พบตัวแปรพยากรณ์ล่วงหน้า 1 วันในคำตอบ');
+        const daily = WX.engine.dailyFromHourly(pm.times, pm.values);
+        if (!daily.size) throw new Error('ไม่มีข้อมูลรายวันที่ครบ');
+        models[m.id] = { mode: 'day1', times: [...daily.keys()], values: [...daily.values()] };
+      } catch (e) {
+        models[m.id] = { error: (e && e.message) || String(e) };
+      }
+    }));
+
+    // ทุกโมเดลดึงแบบล่วงหน้า 1 วันไม่ได้ → ใช้ค่าใกล้เวลาจริงแทน และบอกผู้ใช้ชัดเจน
+    if (!Object.values(models).some(m => !m.error)) {
+      const ids = BACKTEST_MODELS.map(m => m.id);
+      const fBase = `${OM.forecast}?latitude=${loc.lat}&longitude=${loc.lon}&daily=precipitation_sum&${TZ_Q}&past_days=36&forecast_days=1`;
+      try {
+        const j = await firstOk('forecast', [`${fBase}&cell_selection=${CELL}&models=${ids.join(',')}`, `${fBase}&models=${ids.join(',')}`, `${fBase}&models=ecmwf_ifs025,gfs_seamless`]);
+        const got = parseDailyModels(j);
+        for (const id of Object.keys(got)) models[id] = { mode: 'near', times: got[id].times, values: got[id].values };
+      } catch (e) {
+        models._fallbackError = (e && e.message) || String(e);
+      }
+    }
+    return { start, end, obs, models };
   }
 
   // กริดจุดรอบพื้นที่สำหรับวาดแผนที่ฝนจากแบบจำลอง (ช่วงที่ไม่มีภาพเรดาร์) — แถว 0 = เหนือสุด
@@ -211,5 +245,5 @@
     }
   }
 
-  WX.sources = { LIST, ENSEMBLES, BACKTEST_MODELS, run, geocode, parsePrevRuns, fetchJSON, gridPoints, parseGrid };
+  WX.sources = { LIST, ENSEMBLES, BACKTEST_MODELS, run, geocode, parsePrevRuns, parseDailyModels, fetchJSON, gridPoints, parseGrid };
 })(typeof window !== 'undefined' ? window : globalThis);
